@@ -1,4 +1,4 @@
-// lib/screens/home_screen.dart
+// lib/screens/home_screen.dart (Google Sheets options removed)
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -57,27 +57,22 @@ class HomeScreen extends StatelessWidget {
                     } else if (value == 'delete') {
                       provider.deleteCard();
                     } else if (value == 'export_csv') {
-                      provider.exportToCsv();
+                      await provider.exportToCsv(context);
                     } else if (value == 'import_csv') {
-                      provider.importFromCsv();
-                    } else if (value == 'export_sheets') {
-                      provider.exportToGoogleSheets(context);
-                    } else if (value == 'import_sheets') {
-                      _promptSheetId(context, provider);
+                      await provider.importFromCsv();
                     }
                   },
                   itemBuilder: (_) => [
                     const PopupMenuItem(value: 'add', child: Text('Add Card')),
                     const PopupMenuItem(value: 'edit', child: Text('Edit Card')),
                     const PopupMenuItem(value: 'delete', child: Text('Delete Card')),
-                    const PopupMenuItem(value: 'export_csv', child: Text('Export to CSV')),
-                    const PopupMenuItem(value: 'import_csv', child: Text('Import from CSV')),
-                    const PopupMenuItem(value: 'export_sheets', child: Text('Export to Google Sheets')),
-                    const PopupMenuItem(value: 'import_sheets', child: Text('Import from Google Sheets')),
+                    const PopupMenuItem(value: 'export_csv', child: Text('Export Full Backup (CSV)')),
+                    const PopupMenuItem(value: 'import_csv', child: Text('Import Full Backup (CSV)')),
                   ],
                 ),
               ],
             ),
+            // ... rest of body unchanged (image, expense display, bottom buttons)
             body: card == null
                 ? const Center(child: Text('No cards yet – add one!'))
                 : Column(
@@ -174,29 +169,5 @@ class HomeScreen extends StatelessWidget {
       ));
     }
     return buttons;
-  }
-
-  void _promptSheetId(BuildContext context, CardProvider provider) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Import from Google Sheets'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'Sheet ID (from URL)'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              final id = controller.text.trim();
-              if (id.isNotEmpty) provider.importFromGoogleSheets(id);
-              Navigator.pop(context);
-            },
-            child: const Text('Import'),
-          ),
-        ],
-      ),
-    );
   }
 }

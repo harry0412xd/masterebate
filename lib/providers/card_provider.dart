@@ -1,14 +1,17 @@
-// lib/providers/card_provider.dart
+// lib/providers/card_provider.dart (FULL UPDATED FILE - fixed import/export for web)
 import 'dart:convert';
 import 'dart:io' as io;
+import 'dart:html' as html;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/card_model.dart';
-import '../services/google_service.dart';
 
 class CardProvider with ChangeNotifier {
   List<CardModel> _cards = [];
@@ -148,10 +151,27 @@ class CardProvider with ChangeNotifier {
     }
   }
 
-  Future<void> exportToCsv() async {
+  // === EXPORT CSV (full backup - works on web & mobile) ===
+  Future<void> exportToCsv(BuildContext context) async {
     List<List<dynamic>> rows = [
-      ['Card', 'Date', 'Amount', 'Description']
+      ['# Card Configuration'],
+      ['Card Name', 'Monthly Cutoff', 'Rebate Cutoff', 'Extra Rebate %', 'Quota'],
     ];
+
+    for (var card in _cards) {
+      rows.add([
+        card.name,
+        card.monthlyCutoff,
+        card.rebateCutoff,
+        card.extraRebatePct,
+        card.quota,
+      ]);
+    }
+
+    rows.add(['']); // blank line
+    rows.add(['# Expenses']);
+    rows.add(['Card', 'Date', 'Amount', 'Description']);
+
     for (var card in _cards) {
       for (var exp in card.expenses) {
         rows.add([
@@ -162,98 +182,111 @@ class CardProvider with ChangeNotifier {
         ]);
       }
     }
+
     String csv = const ListToCsvConverter().convert(rows);
+    Uint8List bytes = Uint8List.fromList(utf8.encode(csv));
+    final fileName = 'credit_card_tracker_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv';
 
-    String? outputFile = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save Expenses CSV',
-      fileName: 'credit_card_expenses_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv',
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-    );
+    if (kIsWeb) {
+      // Web: direct browser download
+      final blob = html.Blob([bytes], 'text/csv');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      html.Url.revokeObjectUrl(url);
 
-    if (outputFile != null) {
-      io.File file = io.File(outputFile);
-      await file.writeAsString(csv);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Full backup downloaded')),
+        );
+      }
+    } else {
+      // Mobile: share via native share sheet
+      final xFile = XFile.fromData(bytes, name: fileName, mimeType: 'text/csv');
+      await Share.shareXFiles(
+        [xFile],
+        text: 'Credit Card Tracker Backup',
+        subject: 'Full Export - $fileName',
+      );
     }
   }
 
+  // === IMPORT CSV (full backup - works on web & mobile) ===
   Future<void> importFromCsv() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['csv'],
+      withData: true, // Important for web: loads bytes directly
     );
-    if (result != null && result.files.single.path != null) {
-      io.File file = io.File(result.files.single.path!);
-      String csvString = await file.readAsString();
-      List<List<dynamic>> rows = const CsvToListConverter().convert(csvString);
-      if (rows.isEmpty || rows[0][0] != 'Card') return;
-      await _processImportedData(rows.skip(1).toList());
-    }
-  }
 
-  Future<void> exportToGoogleSheets(BuildContext context) async {
-    List<Map<String, dynamic>> data = [];
-    for (var card in _cards) {
-      for (var exp in card.expenses) {
-        data.add({
-          'card': card.name,
-          'date': DateFormat('yyyy-MM-dd').format(exp.date),
-          'amount': exp.amount,
-          'desc': exp.description,
-        });
-      }
-    }
-    String? sheetId = await GoogleService.exportExpenses(data);
-    if (sheetId != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Exported! https://docs.google.com/spreadsheets/d/$sheetId'),
-          duration: const Duration(seconds: 10),
-        ),
-      );
-    }
-  }
+    if (result == null || result.files.isEmpty) return;
 
-  Future<void> importFromGoogleSheets(String sheetId) async {
-    List<Map<String, dynamic>>? data = await GoogleService.importExpenses(sheetId);
-    if (data != null) {
-      await _processImportedData(data.map((e) => [e['card'], e['date'], e['amount'], e['desc']]).toList());
-    }
-  }
+    final platformFile = result.files.single;
+    Uint8List? fileBytes;
 
-  Future<void> _processImportedData(List<List<dynamic>> rows) async {
+    if (kIsWeb) {
+      fileBytes = platformFile.bytes;
+    } else {
+      if (platformFile.path == null) return;
+      fileBytes = await io.File(platformFile.path!).readAsBytes();
+    }
+
+    if (fileBytes == null) return;
+
+    final csvString = utf8.decode(fileBytes);
+    final rows = const CsvToListConverter().convert(csvString);
+
+    List<CardModel> importedCards = [];
+    CardModel? currentCard;
+
     for (var row in rows) {
-      if (row.length < 4) continue;
-      String cardName = row[0].toString();
-      DateTime? date;
-      try {
-        date = DateFormat('yyyy-MM-dd').parse(row[1].toString());
-      } catch (_) {
-        continue;
-      }
-      double amount;
-      try {
-        amount = double.parse(row[2].toString());
-      } catch (_) {
-        continue;
-      }
-      String desc = row[3].toString();
+      if (row.isEmpty) continue;
 
-      var card = _cards.firstWhere(
-        (c) => c.name == cardName,
-        orElse: () => CardModel(
-          name: cardName,
-          monthlyCutoff: 1,
-          rebateCutoff: 1,
-          extraRebatePct: 0.0,
-          quota: 0.0,
-        ),
-      );
-      if (!_cards.contains(card)) _cards.add(card);
-      card.expenses.add(Expense(date: date, amount: amount, description: desc));
+      // Card configuration section
+      if (row.length >= 5 &&
+          row[0] is String &&
+          row[0].toString().trim() != '# Card Configuration' &&
+          row[0].toString().trim() != 'Card Name') {
+        try {
+          currentCard = CardModel(
+            name: row[0].toString().trim(),
+            monthlyCutoff: int.parse(row[1].toString()),
+            rebateCutoff: int.parse(row[2].toString()),
+            extraRebatePct: double.parse(row[3].toString()),
+            quota: double.parse(row[4].toString()),
+          );
+          importedCards.add(currentCard);
+        } catch (e) {
+          // skip invalid card row
+        }
+      }
+
+      // Expenses section
+      if (row.length >= 4 &&
+          row[0] is String &&
+          row[0].toString().trim() == 'Card') {
+        continue; // header
+      }
+      if (row.length >= 4 && currentCard != null) {
+        try {
+          final dateStr = row[1].toString().trim();
+          final date = DateFormat('yyyy-MM-dd').parse(dateStr);
+          final amount = double.parse(row[2].toString());
+          final desc = row[3].toString().trim();
+          currentCard.expenses.add(Expense(date: date, amount: amount, description: desc));
+        } catch (e) {
+          // skip invalid expense row
+        }
+      }
     }
-    _saveData();
-    notifyListeners();
+
+    if (importedCards.isNotEmpty) {
+      _cards = importedCards;
+      _currentIndex = 0;
+      _saveData();
+      notifyListeners();
+    }
   }
 
   void _saveData() {
