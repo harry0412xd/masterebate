@@ -1,11 +1,12 @@
 buildscript {
-    ext.kotlin_version = '1.7.10'
+    ext.kotlin_version = '1.9.24'  // Latest stable as of Jan 2026; check https://kotlinlang.org/docs/releases.html if needed
     repositories {
         google()
         mavenCentral()
     }
 
     dependencies {
+        classpath 'com.android.tools.build:gradle:8.3.0'  // Or latest compatible
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
