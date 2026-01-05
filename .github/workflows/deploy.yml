@@ -21,10 +21,10 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release --base-href "/masterebate/"  # Replace masterebate with your actual repo name!
+        run: flutter build web --release --base-href "/masterebate/"  
 
       - name: Deploy to GitHub Pages
         uses: bluefireteam/flutter-gh-pages@v9
         with:
-          baseHref: /masterebate/          # Same as above, with leading and trailing /
-          workingDir: build/web            # <-- THIS WAS WRONG BEFORE (likely build/web/build)
+          baseHref: /masterebate/  
+          workingDir: build/web           

@@ -1,4 +1,4 @@
-// lib/screens/home_screen.dart (Google Sheets options removed)
+// lib/screens/home_screen.dart (FULL FIXED FILE)
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -72,10 +72,9 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-            // ... rest of body unchanged (image, expense display, bottom buttons)
             body: card == null
                 ? const Center(child: Text('No cards yet – add one!'))
-                : Column(
+                : ListView(
                     children: [
                       if (card.imagePath != null)
                         Padding(
@@ -91,17 +90,34 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ),
                       const SizedBox(height: 10),
-                      Text(
-                        card.name,
-                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                      Center(
+                        child: Text(
+                          card.name,
+                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                        ),
                       ),
                       const SizedBox(height: 20),
+
+                      // === Statement Period Info ===
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Expense: \$${provider.getCurrentExpense(card).toStringAsFixed(2)} / '
+                              'Current Statement Period:',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${DateFormat('MMM dd, yyyy').format(provider.getPeriodStart(provider.currentDate, card.monthlyCutoff))} – '
+                              '${DateFormat('MMM dd, yyyy').format(provider.currentDate)}',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 16),
+
+                            Text(
+                              'Expense in Period: \$${provider.getCurrentExpense(card).toStringAsFixed(2)} / '
                               '\$${card.getRequiredSpend().toStringAsFixed(2)} '
                               '(\$${(card.getRequiredSpend() - provider.getCurrentExpense(card)).toStringAsFixed(2)} left)',
                               style: const TextStyle(fontSize: 18),
@@ -115,31 +131,42 @@ class HomeScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const Spacer(),
-                      BottomAppBar(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              ElevatedButton(
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => CustomEntryDialog(
-                                      onAdd: (amount, desc, save) =>
-                                          provider.addExpense(amount, desc, saveAsPreset: save),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Custom'),
-                              ),
-                              ..._buildPresetButtons(context, provider, card),
-                            ],
-                          ),
-                        ),
+
+                      const SizedBox(height: 24),
+
+                      // === Collapsible Expense List ===
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _ExpenseList(card: card, provider: provider),
                       ),
+
+                      const SizedBox(height: 100), // Space for bottom buttons
                     ],
+                  ),
+            bottomSheet: card == null
+                ? null
+                : BottomAppBar(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => CustomEntryDialog(
+                                  onAdd: (amount, desc, save) =>
+                                      provider.addExpense(amount, desc, saveAsPreset: save),
+                                ),
+                              );
+                            },
+                            child: const Text('Custom'),
+                          ),
+                          ..._buildPresetButtons(context, provider, card!), // Fixed: card!
+                        ],
+                      ),
+                    ),
                   ),
           ),
         );
@@ -169,5 +196,77 @@ class HomeScreen extends StatelessWidget {
       ));
     }
     return buttons;
+  }
+}
+
+class _ExpenseList extends StatefulWidget {
+  final CardModel card;
+  final CardProvider provider;
+
+  const _ExpenseList({required this.card, required this.provider});
+
+  @override
+  State<_ExpenseList> createState() => _ExpenseListState();
+}
+
+class _ExpenseListState extends State<_ExpenseList> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final expenses = widget.card.expenses;
+    if (expenses.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: Text('No expenses yet')),
+        ),
+      );
+    }
+
+    // Sort newest first
+    final sortedExpenses = expenses..sort((a, b) => b.date.compareTo(a.date));
+
+    // Always show last 3
+    final visible = _expanded ? sortedExpenses : sortedExpenses.take(3).toList();
+
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            title: Text(
+              'Recent Expenses (${expenses.length})',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+            onTap: () => setState(() => _expanded = !_expanded),
+          ),
+          const Divider(height: 1),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: visible.length,
+            itemBuilder: (context, i) {
+              final exp = visible[i];
+              return ListTile(
+                dense: true,
+                title: Text(exp.description.isEmpty ? 'Custom' : exp.description),
+                subtitle: Text(DateFormat('MMM dd, yyyy').format(exp.date)),
+                trailing: Text('\$${exp.amount.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              );
+            },
+          ),
+          if (!_expanded && expenses.length > 3)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                'Tap to show all ${expenses.length} expenses',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
