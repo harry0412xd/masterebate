@@ -24,8 +24,13 @@ jobs:
         with:
           channel: stable
 
-      - name: Get Flutter dependencies
-        run: flutter pub get
+      - name: Get Flutter dependencies (resolve from pubspec.yaml)
+        run: |
+          if [ -f pubspec.lock ]; then
+            echo "Removing existing pubspec.lock to resolve using pubspec.yaml constraints"
+            rm pubspec.lock
+          fi
+          flutter pub get
 
       - name: Decode keystore
         run: echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > android/upload-keystore.jks
