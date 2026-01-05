@@ -1,0 +1,30 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual runs
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build web
+        run: flutter build web --release --base-href "/masterebate/"  # Replace masterebate with your actual repo name!
+
+      - name: Deploy to GitHub Pages
+        uses: bluefireteam/flutter-gh-pages@v9
+        with:
+          baseHref: /masterebate/          # Same as above, with leading and trailing /
+          workingDir: build/web            # <-- THIS WAS WRONG BEFORE (likely build/web/build)
