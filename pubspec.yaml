@@ -12,17 +12,21 @@ dependencies:
     sdk: flutter
   provider: ^6.1.2
   shared_preferences: ^2.3.2
-  file_picker: ^5.5.0        # Downgraded to version compatible with Flutter 3.0+ and Dart 3.0
-  csv: ^5.1.1                # Downgraded to older major version (6.x requires newer Dart/Flutter)
-  intl: ^0.18.1              # Downgraded from 0.20.x (requires Dart >=3.3)
-  image_picker: ^0.8.9       # Major version 0.x (last before 1.0.0) for older Flutter compatibility
+  file_picker: ^10.3.8
+  csv: ^6.0.0
+  intl: ^0.20.2
+  image_picker: ^1.2.1
   share_plus: ^12.0.1     
   path_provider: ^2.1.4
+  characters: ^1.4.0
+  material_color_utilities: ^0.11.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.3      # Downgraded to 2.x (3+ and especially 6+ require newer Flutter/Dart)
+  flutter_lints: ^6.0.0
+  matcher: "^0.12.17"
+  test_api: "^0.7.7"
 
 flutter:
   uses-material-design: true
