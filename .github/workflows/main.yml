@@ -7,99 +7,79 @@ on:
   workflow_dispatch:  # Allows manual trigger
 
 jobs:
-  build-release:
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+          distribution: 'zulu'
+          java-version: 11
+      - uses: subosito/flutter-action@v1
         with:
-          channel: stable
-
-      - name: Get Flutter dependencies (resolve from pubspec.yaml)
-        run: |
-          if [ -f pubspec.lock ]; then
-            echo "Removing existing pubspec.lock to resolve using pubspec.yaml constraints"
-            rm pubspec.lock
-          fi
-          flutter pub get
-
-      - name: Decode keystore
-        run: echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > android/upload-keystore.jks
-
-      - name: Build Release AAB (recommended for Play Store)
+          flutter-version: '2.8.1'
+      - uses: finnp/create-file-action@master
         env:
-          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-          STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-        run: |
-          flutter build appbundle --release --stacktrace --info ... \
-            --dart-define=FLUTTER_BUILD_NAME=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0") \
-            --dart-define=FLUTTER_BUILD_NUMBER=$(git rev-list --count HEAD)
+          FILE_NAME: lib/common/config/ignoreConfig.dart
+          FILE_DATA: class NetConfig { static const CLIENT_ID = "${{ secrets.CLIENT_ID }}"; static const CLIENT_SECRET = "${{ secrets.CLIENT_SECRET }}";}
+      - run: flutter pub get
+      - run: flutter build apk --release --target-platform=android-arm64 --no-shrink
 
-      - name: Build Release APK (for direct download)
+  apk:
+    name: Generate APK
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'zulu'
+          java-version: 8
+      - uses: subosito/flutter-action@v1
+        with:
+          flutter-version: '2.5.3'
+      - uses: finnp/create-file-action@master
         env:
-          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-          STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-        run: |
-          flutter build apk --release --split-per-abi
+          FILE_NAME: lib/common/config/ignoreConfig.dart
+          FILE_DATA: class NetConfig { static const CLIENT_ID = "${{ secrets.CLIENT_ID }}"; static const CLIENT_SECRET = "${{ secrets.CLIENT_SECRET }}";}
+      - run: flutter pub get
+      - run: flutter build apk --release --target-platform=android-arm64 --no-shrink
+      - name: Upload APK
+        uses: actions/upload-artifact@v2
+        with:
+          name: apk
+          path: build/app/outputs/apk/release/app-release.apk
+  release:
+    name: Release APK
+    needs: apk
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK from build
+        uses: actions/download-artifact@v2
+        with:
+          name: apk
+      - name: Display structure of downloaded files
+        run: ls -R
 
-      - name: Create GitHub Release
+      - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: actions/create-release@v1.1.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v$(date +'%Y.%m.%d')-${{ github.run_number }}
-          release_name: Release ${{ github.run_number }} - ${{ github.sha }}
-          draft: false
-          prerelease: false
-
-      - name: Upload AAB to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/bundle/release/app-release.aab
-          asset_name: credit-card-tracker.aab
-          asset_content_type: application/octet-stream
-
-      - name: Upload APK (arm64-v8a)
-        uses: actions/upload-release-asset@v1
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+      - name: Upload Release APK
+        id: upload_release_asset
+        uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/apk/release/app-release-arm64-v8a.apk
-          asset_name: credit-card-tracker-arm64-v8a.apk
-          asset_content_type: application/vnd.android.package-archive
-
-      - name: Upload APK (armeabi-v7a)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/apk/release/app-release-armeabi-v7a.apk
-          asset_name: credit-card-tracker-armeabi-v7a.apk
-          asset_content_type: application/vnd.android.package-archive
-
-      - name: Upload Universal APK
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/apk/release/app-release.apk
-          asset_name: credit-card-tracker-universal.apk
-          asset_content_type: application/vnd.android.package-archive
+          asset_path: ./app-release.apk
+          asset_name: app-release.apk
+          asset_content_type: application/zip
