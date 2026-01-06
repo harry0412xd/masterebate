@@ -1,9 +1,9 @@
 name: Build and Release Android APK
 
 on:
-  push:
-    branches: [ main ]
-    paths: [ 'lib/**' ]
+  # push:
+  #   branches: [ main ]
+  #   paths: [ 'lib/**' ]
   workflow_dispatch:  # Allows manual trigger
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
         run: |
-          flutter build appbundle --release \
+          flutter build appbundle --release --stacktrace --info ... \
             --dart-define=FLUTTER_BUILD_NAME=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0") \
             --dart-define=FLUTTER_BUILD_NUMBER=$(git rev-list --count HEAD)
 
