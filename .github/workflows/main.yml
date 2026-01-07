@@ -51,7 +51,7 @@ jobs:
 
       - name: Build release APK (arm64-only)
         run: |
-          flutter build apk --release --target-platform=android-arm64 --no-shrink --stacktrace
+          flutter build apk --release --target-platform=android-arm64 --no-shrink --verbose
 
       # If you prefer a universal ("fat") APK instead of arm64-only, use this line instead:
       # run: flutter build apk --release --no-shrink
