@@ -22,7 +22,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2.21.0
         with:
-          flutter-version: pubspec.yaml
+          flutter-version: ../pubspec.yaml
           channel: stable
 
       - name: Decode release keystore
