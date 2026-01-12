@@ -16,7 +16,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2.21.0
         with:
-          flutter-version: '**/pubspec.yaml'
+          flutter-version: 9.2.0
           channel: "stable"
           cache: true
           cache-key: deps-${{ hashFiles('**/pubspec.lock') }} # optional, change this to force refresh cache
@@ -39,7 +39,7 @@ jobs:
 
       - name: Clean Flutter cache
         run: flutter pub cache clean
-        
+
       - name: Get Flutter dependencies
         run: flutter pub get
 
