@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'      # Compatible with Dart 3.0.0 (Flutter ~3.0.x era)
+  sdk: '^3.9.0-0'      # Compatible with Dart 3.0.0 (Flutter ~3.0.x era)
   flutter: '3.38.1' # Safe upper bound to avoid newer plugins breaking on old Flutter
 
 dependencies:
