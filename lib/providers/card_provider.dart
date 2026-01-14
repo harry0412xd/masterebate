@@ -1,7 +1,6 @@
 // lib/providers/card_provider.dart (FULL UPDATED FILE - Fixed import bug)
 import 'dart:convert';
 import 'dart:io' as io;
-import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -10,7 +9,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:share_plus/share_plus.dart';
 import '../models/card_model.dart';
 
 class CardProvider with ChangeNotifier {
