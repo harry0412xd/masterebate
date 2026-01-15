@@ -20,6 +20,11 @@ dependencies:
   path_provider: ^2.1.4
   characters: ^1.4.0
   material_color_utilities: ^0.11.1
+  permission_handler: ^11.3.1
+  quick_actions: ^1.0.0
+  quick_settings: ^1.0.1
+  fl_chart: ^1.1.1
+  
   
 
 dev_dependencies:

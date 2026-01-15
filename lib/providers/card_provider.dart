@@ -21,6 +21,20 @@ class CardProvider with ChangeNotifier {
     _loadData();
   }
 
+  bool _quickAddRequested = false;
+
+  bool get quickAddRequested => _quickAddRequested;
+
+  void triggerQuickAdd() {
+    _quickAddRequested = true;
+    notifyListeners();
+  }
+
+  void consumeQuickAdd() {
+    _quickAddRequested = false;
+    notifyListeners();
+  }
+
   List<CardModel> get cards => _cards;
   int get currentIndex => _currentIndex;
   CardModel? get currentCard =>
@@ -32,6 +46,15 @@ class CardProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  int getCurrentIndex() {
+    return _currentIndex;
+  }
+  void setCurrentIndex(int index) {
+    if (index >= 0 && index < _cards.length) {
+      _currentIndex = index;
+      notifyListeners();
+    }
+  }
   void switchCard(int direction) {
     if (_cards.isEmpty) return;
     _currentIndex = (_currentIndex + direction) % _cards.length;
@@ -149,10 +172,51 @@ class CardProvider with ChangeNotifier {
     }
   }
 
-  // === EXPORT & IMPORT (unchanged except import fix) ===
-  Future<void> exportToCsv(BuildContext context) async {
-    // ... (same as previous version)
+Future<void> exportToCsv(BuildContext context) async {
+  // Add permission request if needed (Android 13+ scoped storage usually ok)
+  
+  final csvRows = <List<dynamic>>[];
+
+  csvRows.add(['Card Name', 'Monthly Cutoff', 'Rebate Cutoff', 'Extra Rebate %', 'Quota']);
+  for (final card in _cards) {
+    csvRows.add([
+      card.name,
+      card.monthlyCutoff,
+      card.rebateCutoff,
+      card.extraRebatePct,
+      card.quota,
+    ]);
   }
+
+  csvRows.add([]); // separator
+  csvRows.add(['Card', 'Date', 'Amount', 'Description']);
+
+  for (final card in _cards) {
+    for (final exp in card.expenses) {
+      csvRows.add([
+        card.name,
+        DateFormat('yyyy-MM-dd').format(exp.date),
+        exp.amount,
+        exp.description,
+      ]);
+    }
+  }
+
+  final csv = const ListToCsvConverter().convert(csvRows);
+
+  final path = await FilePicker.platform.getDirectoryPath();
+  if (path == null) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export cancelled')));
+    return;
+  }
+
+  final file = io.File('$path/masterrebate_export_${DateTime.now().millisecondsSinceEpoch}.csv');
+  await file.writeAsString(csv);
+
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text('Saved to ${file.path}'),
+  ));
+}
 
   Future<void> importFromCsv() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
