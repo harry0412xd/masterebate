@@ -1,5 +1,6 @@
 // lib/screens/home_screen.dart
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -8,34 +9,56 @@ import '../models/card_model.dart';
 import '../widgets/card_form.dart';
 import '../widgets/preset_dialog.dart';
 import '../widgets/custom_entry_dialog.dart';
-import '../widgets/card_summary.dart';     // new
-import '../widgets/expense_list.dart';      // new
-import '../screens/overview_screen.dart';   // new
-import '../widgets/quick_add_sheet.dart';  // new
+import '../widgets/card_summary.dart';
+import '../widgets/expense_list.dart';
+import '../screens/overview_screen.dart';
+import '../widgets/quick_add_sheet.dart';
+import '../screens/settings_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('MasterRebate'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Card'),
-              Tab(text: 'Overview'),
-            ],
-          ),
-          actions: [
+    return Scaffold(
+      appBar: AppBar(
+        title: const SizedBox.shrink(), // No title
+        bottom: const TabBar(
+          tabs: [
+            Tab(text: 'Card'),
+            Tab(text: 'Overview'),
+          ],
+        ),
+        actions: [
+          if (kDebugMode)
             IconButton(
               icon: const Icon(Icons.calendar_today),
-              tooltip: 'Debug Date',
+              tooltip: 'Set Debug Date',
               onPressed: () async {
                 final provider = Provider.of<CardProvider>(context, listen: false);
-                DateTime? picked = await showDatePicker(
+                final picked = await showDatePicker(
                   context: context,
                   initialDate: provider.currentDate,
                   firstDate: DateTime(2020),
@@ -46,162 +69,209 @@ class HomeScreen extends StatelessWidget {
                 }
               },
             ),
-            PopupMenuButton<String>(
-              onSelected: (value) async {
-                final provider = Provider.of<CardProvider>(context, listen: false);
-                if (value == 'add') {
-                  showDialog(
-                    context: context,
-                    builder: (_) => CardForm(onSave: provider.addCard),
-                  );
-                } else if (value == 'edit') {
-                  final card = provider.currentCard;
-                  if (card != null) {
-                    showDialog(
-                      context: context,
-                      builder: (_) => CardForm(card: card, onSave: provider.editCard),
-                    );
-                  }
-                } else if (value == 'delete') {
-                  provider.deleteCard();
-                } else if (value == 'export_csv') {
-                  // await provider.exportToCsv(context);
-                } else if (value == 'import_csv') {
-                  // await provider.importFromCsv();
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'add', child: Text('Add Card')),
-                const PopupMenuItem(value: 'edit', child: Text('Edit Card')),
-                const PopupMenuItem(value: 'delete', child: Text('Delete Card')),
-                const PopupMenuItem(value: 'export_csv', child: Text('Export CSV')),
-                const PopupMenuItem(value: 'import_csv', child: Text('Import CSV')),
-              ],
-            ),
-          ],
-        ),
-        body: TabBarView(
-          children: [
-            const _CardTab(),
-            const OverviewScreen(),
-          ],
-        ),
-        bottomSheet: const _BottomQuickAddBar(),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              final provider = Provider.of<CardProvider>(context, listen: false);
+              if (value == 'add') {
+                showDialog(
+                  context: context,
+                  builder: (_) => CardForm(onSave: provider.addCard),
+                );
+              } else if (value == 'delete') {
+                final card = provider.currentCard;
+                if (card == null) return;
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Remove Card'),
+                    content: Text('Delete "${card.name}" and all its expenses?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        onPressed: () {
+                          provider.deleteCard();
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Remove'),
+                      ),
+                    ],
+                  ),
+                );
+              } else if (value == 'settings') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'add', child: Text('Add Card')),
+              const PopupMenuItem(value: 'delete', child: Text('Remove Card')),
+              const PopupMenuItem(value: 'settings', child: Text('Settings')),
+            ],
+          ),
+        ],
       ),
+      body: TabBarView(
+        controller: _tabController,
+        children: const [
+          _CardTab(),
+          OverviewScreen(),
+        ],
+      ),
+      bottomNavigationBar: _tabController.index == 0 ? const _BottomQuickAddBar() : null,
     );
   }
 }
 
-class _CardTab extends StatefulWidget {
+class _CardTab extends StatelessWidget {
   const _CardTab();
-
-  @override
-  State<_CardTab> createState() => _CardTabState();
-}
-
-class _CardTabState extends State<_CardTab> {
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final provider = Provider.of<CardProvider>(context, listen: false);
-    if (provider.quickAddRequested) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        showQuickAddBottomSheet(context);   // ← your quick add function
-        provider.consumeQuickAdd();
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<CardProvider>(
-      builder: (context, provider, child) {
-        final card = provider.currentCard;
+      builder: (context, provider, _) {
+        final cards = provider.cards;
 
-        if (card == null) {
-          return const Center(child: Text('No cards added yet\nTap menu → Add Card'));
+        if (cards.isEmpty) {
+          return const Center(
+            child: Text(
+              'No cards yet\nUse menu → Add Card',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18),
+            ),
+          );
         }
 
-        return GestureDetector(
-          onHorizontalDragEnd: (details) {
-            if (details.primaryVelocity! > 300) provider.switchCard(-1);
-            if (details.primaryVelocity! < -300) provider.switchCard(1);
-          },
-          child: ListView(
-            children: [
-              CardSummary(card: card, provider: provider),
-              const SizedBox(height: 16),
-              ExpenseList(card: card),
-              const SizedBox(height: 140),
-            ],
-          ),
+        return Column(
+          children: [
+            SizedBox(
+              height: 68,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                itemCount: cards.length,
+                itemBuilder: (context, index) {
+                  final card = cards[index];
+                  final isSelected = provider.currentIndex == index;
+                  return GestureDetector(
+                    onTap: () => provider.setCurrentIndex(index),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Container(
+                        width: 64,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                            width: 2.5,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: card.imagePath != null
+                            ? Image.file(File(card.imagePath!), fit: BoxFit.cover)
+                            : Container(
+                                color: Theme.of(context).colorScheme.surfaceContainer,
+                                child: const Icon(Icons.credit_card, size: 32),
+                              ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Expanded(
+              child: GestureDetector(
+                onHorizontalDragEnd: (details) {
+                  if (details.primaryVelocity! > 400) provider.switchCard(-1);
+                  if (details.primaryVelocity! < -400) provider.switchCard(1);
+                },
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: 140),
+                  children: [
+                    CardSummary(
+                      card: provider.currentCard!,
+                      provider: provider,
+                    ),
+                    const SizedBox(height: 16),
+                    ExpenseList(card: provider.currentCard!),
+                  ],
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
   }
 }
+
 class _BottomQuickAddBar extends StatelessWidget {
   const _BottomQuickAddBar();
 
   @override
   Widget build(BuildContext context) {
     return Consumer<CardProvider>(
-      builder: (context, provider, child) {
+      builder: (context, provider, _) {
         final card = provider.currentCard;
         if (card == null) return const SizedBox.shrink();
 
-        // Auto-show quick add when triggered by shortcut / tile
-        if (provider.quickAddRequested) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            // showQuickAddBottomSheet(context);   // ← implement this function
-            provider.consumeQuickAdd();
-          });
-        }
-
-        var sortedPresets = List<Preset>.from(card.presets)
+        var sorted = List<Preset>.from(card.presets)
           ..sort((a, b) => b.frequency.compareTo(a.frequency));
-        var topPresets = sortedPresets.take(5).toList();
+        var top = sorted.take(5).toList();
 
         return BottomAppBar(
+          height: 80,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ElevatedButton(
+                  OutlinedButton(
                     onPressed: () {
                       showDialog(
                         context: context,
                         builder: (_) => CustomEntryDialog(
-                          onAdd: (amount, desc, saveAsPreset) {
-                            provider.addExpense(amount, desc, saveAsPreset: saveAsPreset);
-                          },
+                          onAdd: (amt, desc, save) => provider.addExpense(amt, desc, saveAsPreset: save),
                         ),
                       );
                     },
                     child: const Text('Custom'),
                   ),
                   const SizedBox(width: 12),
-                  ...topPresets.map((p) => Padding(
+                  ...top.map((p) => Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: ElevatedButton(
+                        child: FilledButton.tonal(
                           onPressed: () => provider.addFromPreset(p),
                           child: Text(
-                            '${p.description}\n\$${p.amount.toStringAsFixed(2)}',
+                            '${p.description}\n\$${p.amount.toStringAsFixed(0)}',
                             textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 13),
                           ),
                         ),
                       )),
-                  if (sortedPresets.length > 5)
-                    ElevatedButton(
+                  if (sorted.length > 5)
+                    FilledButton.tonal(
                       onPressed: () => showDialog(
                         context: context,
                         builder: (_) => PresetDialog(card: card),
                       ),
-                      child: const Text('⋯ More'),
+                      child: const Text('More…'),
                     ),
                 ],
               ),

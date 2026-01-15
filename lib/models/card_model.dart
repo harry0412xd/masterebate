@@ -12,6 +12,23 @@ class Expense {
     required this.description,
   });
 
+  static List csvHeader() {
+    return [
+      'Card'
+      'Date',
+      'Amount',
+      'Description',
+    ];
+  }
+  List toCsvList(String cardName) {
+    return [
+      cardName,
+      DateFormat('yyyy-MM-dd').format(date),
+      amount,
+      description,
+    ];
+  }
+
   Map<String, dynamic> toJson() => {
         'date': date.toIso8601String(),
         'amount': amount,
@@ -23,6 +40,7 @@ class Expense {
         amount: json['amount'],
         description: json['description'],
       );
+
 }
 
 class Preset {
@@ -56,8 +74,8 @@ class CardModel {
   double extraRebatePct;
   double quota;
   String? imagePath;
-  List<Expense> expenses = [];
-  List<Preset> presets = [];
+  List<Expense> expenses;
+  List<Preset> presets;
 
   CardModel({
     required this.name,
@@ -66,7 +84,12 @@ class CardModel {
     required this.extraRebatePct,
     required this.quota,
     this.imagePath,
-  });
+    List<Expense>? expenses,
+    List<Preset>? presets,
+  })  : expenses = expenses ?? [],
+        presets = presets ?? [];
+
+
 
   double getRequiredSpend() {
     if (extraRebatePct <= 0) return 0.0;
@@ -85,20 +108,54 @@ class CardModel {
       };
 
   factory CardModel.fromJson(Map<String, dynamic> json) {
-    var card = CardModel(
+    return CardModel(
       name: json['name'],
       monthlyCutoff: json['monthlyCutoff'],
       rebateCutoff: json['rebateCutoff'],
       extraRebatePct: json['extraRebatePct'],
       quota: json['quota'],
       imagePath: json['imagePath'],
+      expenses: (json['expenses'] as List<dynamic>?)
+              ?.map((e) => Expense.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      presets: (json['presets'] as List<dynamic>?)
+              ?.map((p) => Preset.fromJson(p as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
-    card.expenses = (json['expenses'] as List)
-        .map((e) => Expense.fromJson(e))
-        .toList();
-    card.presets = (json['presets'] as List)
-        .map((p) => Preset.fromJson(p))
-        .toList();
-    return card;
+  }
+
+
+  static List csvHeader() {
+    return [
+      'Card Name',
+      'Monthly Cutoff',
+      'Rebate Cutoff',
+      'Extra Rebate %',
+      'Quota'
+    ];
+  }
+
+  List toCsvList() {
+    return [
+      name,
+      monthlyCutoff,
+      rebateCutoff,
+      extraRebatePct,
+      quota
+    ];
+  }
+
+  factory CardModel.fromCsvRow(String csvRow, String headerRow) {
+    final headers = headerRow.split(',');
+    final values = csvRow.split(',');
+    return CardModel(
+      name: values[headers.indexOf('name')],
+      monthlyCutoff: int.parse(values[headers.indexOf('monthlyCutoff')]),
+      rebateCutoff: int.parse(values[headers.indexOf('rebateCutoff')]),
+      extraRebatePct: double.parse(values[headers.indexOf('extraRebatePct')]),
+      quota: double.parse(values[headers.indexOf('quota')]),
+    );
   }
 }

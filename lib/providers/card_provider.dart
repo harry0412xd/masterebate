@@ -1,4 +1,4 @@
-// lib/providers/card_provider.dart (FULL UPDATED FILE - Fixed import bug)
+// lib/providers/card_provider.dart
 import 'dart:convert';
 import 'dart:io' as io;
 import 'dart:typed_data';
@@ -10,6 +10,7 @@ import 'package:csv/csv.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/card_model.dart';
+
 
 class CardProvider with ChangeNotifier {
   List<CardModel> _cards = [];
@@ -126,24 +127,26 @@ class CardProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  DateTime getPeriodStart(DateTime today, int cutoff) {
-    int year = today.year;
-    int month = today.month;
-    int day = cutoff + 1;
+DateTime getPeriodStart(DateTime today, int cutoff) {
+  int year = today.year;
+  int month = today.month;
+  int day = cutoff;
 
-    if (today.day <= cutoff) {
-      month -= 1;
-      if (month < 1) {
-        month = 12;
-        year -= 1;
-      }
+  // If today is on or before the cutoff day → we are still in the previous cycle
+  if (today.day <= cutoff) {
+    month--;
+    if (month < 1) {
+      month = 12;
+      year--;
     }
-
-    final lastDayOfMonth = DateTime(year, month + 1, 0).day;
-    if (day > lastDayOfMonth) day = lastDayOfMonth;
-
-    return DateTime(year, month, day);
   }
+
+  // Handle months where cutoff day doesn't exist (e.g. 31 Feb)
+  final lastDay = DateTime(year, month + 1, 0).day;
+  if (day > lastDay) day = lastDay;
+
+  return DateTime(year, month, day);
+}
 
   double getCurrentExpense(CardModel card) {
     final today = currentDate;
@@ -173,32 +176,18 @@ class CardProvider with ChangeNotifier {
   }
 
 Future<void> exportToCsv(BuildContext context) async {
-  // Add permission request if needed (Android 13+ scoped storage usually ok)
-  
   final csvRows = <List<dynamic>>[];
 
-  csvRows.add(['Card Name', 'Monthly Cutoff', 'Rebate Cutoff', 'Extra Rebate %', 'Quota']);
+  csvRows.add(CardModel.csvHeader());
   for (final card in _cards) {
-    csvRows.add([
-      card.name,
-      card.monthlyCutoff,
-      card.rebateCutoff,
-      card.extraRebatePct,
-      card.quota,
-    ]);
+    csvRows.add(card.toCsvList());
   }
-
-  csvRows.add([]); // separator
-  csvRows.add(['Card', 'Date', 'Amount', 'Description']);
+  csvRows.add([]);
+  csvRows.add(Expense.csvHeader());
 
   for (final card in _cards) {
     for (final exp in card.expenses) {
-      csvRows.add([
-        card.name,
-        DateFormat('yyyy-MM-dd').format(exp.date),
-        exp.amount,
-        exp.description,
-      ]);
+      csvRows.add(exp.toCsvList(card.name));
     }
   }
 
@@ -210,7 +199,8 @@ Future<void> exportToCsv(BuildContext context) async {
     return;
   }
 
-  final file = io.File('$path/masterrebate_export_${DateTime.now().millisecondsSinceEpoch}.csv');
+  final datetimeMinute = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+  final file = io.File('$path/masterrebate_export_$datetimeMinute.csv');
   await file.writeAsString(csv);
 
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -224,7 +214,6 @@ Future<void> exportToCsv(BuildContext context) async {
       allowedExtensions: ['csv'],
       withData: true,
     );
-
     if (result == null || result.files.isEmpty) return;
 
     final platformFile = result.files.single;
