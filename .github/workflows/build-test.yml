@@ -1,5 +1,4 @@
-name: Build and Release Android APK
-
+name: Build Test
 on:
   workflow_dispatch:  # Manual trigger for testing
   push:
@@ -45,9 +44,7 @@ jobs:
           name: app-release-apk
           path: build/app/outputs/apk/test-release.apk  # Path for single ABI
 
-      # Release steps - only run on tagged pushes
       - name: Create GitHub Release
-
         id: create_release
         uses: actions/create-release@v1
         env:
