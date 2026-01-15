@@ -1,0 +1,67 @@
+name: Build Test
+on:
+  workflow_dispatch:  # Manual trigger for testing
+  push:
+    branches: [ test ]
+    tags:
+      - '*release*'  # Triggers release on tags like v1.0.0
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2.21.0
+        with:
+          flutter-version: 3.38.3
+          channel: "stable"
+          cache: true
+          cache-key: deps-${{ hashFiles('**/pubspec.lock') }} # optional, change this to force refresh cache
+          cache-path: ${{ runner.tool_cache }}/flutter # optional, change this to specify the cache path
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '24'
+      - name: Decode release keystore
+        run: |
+          echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > android/upload-keystore.jks
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Build release APK (arm64-only)
+        run: |
+          flutter build apk --release --target-platform=android-arm64 --no-shrink --verbose
+
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: build/app/outputs/apk/test-release.apk  # Path for single ABI
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Test ${{ github.ref_name }}
+          draft: false
+          prerelease: true
+
+      - name: Upload APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/app/outputs/flutter-apk/test-release.apk
+          asset_name: test-release.apk
+          asset_content_type: application/vnd.android.package-archive
