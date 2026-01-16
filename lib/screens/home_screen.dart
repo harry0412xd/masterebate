@@ -76,30 +76,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   context: context,
                   builder: (_) => CardForm(onSave: provider.addCard),
                 );
-              } else if (value == 'delete') {
-                final card = provider.currentCard;
-                if (card == null) return;
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Remove Card'),
-                    content: Text('Delete "${card.name}" and all its expenses?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        style: TextButton.styleFrom(foregroundColor: Colors.red),
-                        onPressed: () {
-                          provider.deleteCard();
-                          Navigator.pop(ctx);
-                        },
-                        child: const Text('Remove'),
-                      ),
-                    ],
-                  ),
-                );
               } else if (value == 'settings') {
                 Navigator.push(
                   context,
@@ -109,7 +85,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'add', child: Text('Add Card')),
-              const PopupMenuItem(value: 'delete', child: Text('Remove Card')),
               const PopupMenuItem(value: 'settings', child: Text('Settings')),
             ],
           ),

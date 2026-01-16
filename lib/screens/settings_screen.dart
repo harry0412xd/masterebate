@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/card_provider.dart';
+import 'manage_cards_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -38,7 +39,19 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
-          // You can add more settings later (currency, language, etc.)
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.manage_accounts),
+            title: const Text('Manage Cards'),
+            subtitle: const Text('Delete or view cards'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManageCardsScreen()),
+              );
+            },
+          ),
+          const Divider(),
         ],
       ),
     );
