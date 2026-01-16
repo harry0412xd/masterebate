@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../providers/card_provider.dart';
 import '../models/card_model.dart';
 import '../widgets/card_form.dart';
@@ -12,7 +11,6 @@ import '../widgets/custom_entry_dialog.dart';
 import '../widgets/card_summary.dart';
 import '../widgets/expense_list.dart';
 import '../screens/overview_screen.dart';
-import '../widgets/quick_add_sheet.dart';
 import '../screens/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -45,8 +43,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return Scaffold(
       appBar: AppBar(
         title: const SizedBox.shrink(), // No title
-        bottom: const TabBar(
-          tabs: [
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
             Tab(text: 'Card'),
             Tab(text: 'Overview'),
           ],
