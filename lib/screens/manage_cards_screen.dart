@@ -9,9 +9,7 @@ class ManageCardsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Cards'),
-      ),
+      appBar: AppBar(title: const Text('Manage Cards')),
       body: Consumer<CardProvider>(
         builder: (context, provider, child) {
           final cards = provider.cards;
@@ -40,10 +38,26 @@ class ManageCardsScreen extends StatelessWidget {
                 subtitle: isCurrent
                     ? const Text('Current card')
                     : Text('${card.expenses.length} expenses'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  tooltip: 'Delete card',
-                  onPressed: () => _confirmDelete(context, provider, index, card),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        card.isHidden ? Icons.visibility_off : Icons.visibility,
+                        color: card.isHidden ? Colors.grey : Colors.blue,
+                      ),
+                      tooltip: card.isHidden ? 'Unhide card' : 'Hide card',
+                      onPressed: () {
+                        provider.toggleCardHidden(index);
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      tooltip: 'Delete card',
+                      onPressed: () =>
+                          _confirmDelete(context, provider, index, card),
+                    ),
+                  ],
                 ),
                 onTap: () {
                   // Optional: switch to selected card

@@ -74,9 +74,10 @@ class CardModel {
   double extraRebatePct;
   double quota;
   String? imagePath;
+  bool isHidden;
   List<Expense> expenses;
   List<Preset> presets;
-
+  
   CardModel({
     required this.name,
     required this.monthlyCutoff,
@@ -84,6 +85,7 @@ class CardModel {
     required this.extraRebatePct,
     required this.quota,
     this.imagePath,
+    this.isHidden = false,
     List<Expense>? expenses,
     List<Preset>? presets,
   })  : expenses = expenses ?? [],
@@ -103,6 +105,7 @@ class CardModel {
         'extraRebatePct': extraRebatePct,
         'quota': quota,
         'imagePath': imagePath,
+        'isHidden': isHidden,
         'expenses': expenses.map((e) => e.toJson()).toList(),
         'presets': presets.map((p) => p.toJson()).toList(),
       };
@@ -115,6 +118,7 @@ class CardModel {
       extraRebatePct: json['extraRebatePct'],
       quota: json['quota'],
       imagePath: json['imagePath'],
+      isHidden: json['isHidden'] ?? false,
       expenses: (json['expenses'] as List<dynamic>?)
               ?.map((e) => Expense.fromJson(e as Map<String, dynamic>))
               .toList() ??

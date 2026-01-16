@@ -109,14 +109,17 @@ class _CardTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<CardProvider>(
       builder: (context, provider, _) {
-        final cards = provider.cards;
+        final visibleCards = provider.visibleCards;
 
-        if (cards.isEmpty) {
+        if (visibleCards.isEmpty) {
           return const Center(
-            child: Text(
-              'No cards yet\nUse menu → Add Card',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18),
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Text(
+                'No visible cards\n\nHidden cards can be managed in Settings → Manage Cards',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, height: 1.5),
+              ),
             ),
           );
         }
@@ -128,12 +131,16 @@ class _CardTab extends StatelessWidget {
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                itemCount: cards.length,
-                itemBuilder: (context, index) {
-                  final card = cards[index];
-                  final isSelected = provider.currentIndex == index;
+                itemCount: visibleCards.length,
+                itemBuilder: (context, visibleIndex) {
+                  final card = visibleCards[visibleIndex];
+
+                  // Find real index in full _cards list (needed for setCurrentIndex)
+                  final realIndex = provider.cards.indexOf(card);
+                  final isSelected = provider.currentIndex == realIndex;
+
                   return GestureDetector(
-                    onTap: () => provider.setCurrentIndex(index),
+                    onTap: () => provider.setCurrentIndex(realIndex),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       child: Container(
@@ -156,18 +163,18 @@ class _CardTab extends StatelessWidget {
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: card.imagePath != null
-                          ? AspectRatio(
-                              aspectRatio: 1.6,
-                              child: Image.file(
-                                File(card.imagePath!),
-                                fit: BoxFit.contain,
+                            ? AspectRatio(
+                                aspectRatio: 1002 / 629,
+                                child: Image.file(
+                                  File(card.imagePath!),
+                                  fit: BoxFit.contain,
+                                ),
+                              )
+                            : Container(
+                                color: Theme.of(context).colorScheme.surfaceContainer,
+                                child: const Icon(Icons.credit_card, size: 32),
                               ),
-                            )
-                          : Container(
-                              color: Theme.of(context).colorScheme.surfaceContainer,
-                              child: const Icon(Icons.credit_card, size: 32),
-                            ),
-                        ),
+                      ),
                     ),
                   );
                 },
@@ -198,7 +205,6 @@ class _CardTab extends StatelessWidget {
     );
   }
 }
-
 class _BottomQuickAddBar extends StatelessWidget {
   const _BottomQuickAddBar();
 

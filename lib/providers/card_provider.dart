@@ -8,9 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:intl/intl.dart';
-import 'package:image_picker/image_picker.dart';
 import '../models/card_model.dart';
-
 
 class CardProvider with ChangeNotifier {
   List<CardModel> _cards = [];
@@ -22,24 +20,33 @@ class CardProvider with ChangeNotifier {
     _loadData();
   }
 
-  bool _quickAddRequested = false;
+  // ── Visible cards only ────────────────────────────────────────────────
+  List<CardModel> get visibleCards =>
+      _cards.where((c) => !c.isHidden).toList();
 
-  bool get quickAddRequested => _quickAddRequested;
+  // ── Current card logic (prefers visible, falls back safely) ───────────
+  CardModel? get currentCard {
+    if (_cards.isEmpty) return null;
 
-  void triggerQuickAdd() {
-    _quickAddRequested = true;
-    notifyListeners();
+    // Keep index in bounds
+    if (_currentIndex < 0 || _currentIndex >= _cards.length) {
+      _currentIndex = 0;
+    }
+
+    // If current card is hidden, try to switch to first visible one
+    if (_cards[_currentIndex].isHidden) {
+      final firstVisibleIndex = _cards.indexWhere((c) => !c.isHidden);
+      if (firstVisibleIndex != -1) {
+        _currentIndex = firstVisibleIndex;
+      }
+      // If still no visible cards, we return the hidden one only for manage screen
+    }
+
+    return _cards[_currentIndex];
   }
 
-  void consumeQuickAdd() {
-    _quickAddRequested = false;
-    notifyListeners();
-  }
-
-  List<CardModel> get cards => _cards;
+  List<CardModel> get cards => _cards; // full list (used in manage screen)
   int get currentIndex => _currentIndex;
-  CardModel? get currentCard =>
-      _cards.isNotEmpty ? _cards[_currentIndex] : null;
   DateTime get currentDate => _debugDate;
 
   void setDebugDate(DateTime date) {
@@ -47,19 +54,25 @@ class CardProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  int getCurrentIndex() {
-    return _currentIndex;
-  }
   void setCurrentIndex(int index) {
     if (index >= 0 && index < _cards.length) {
       _currentIndex = index;
       notifyListeners();
     }
   }
+
   void switchCard(int direction) {
-    if (_cards.isEmpty) return;
-    _currentIndex = (_currentIndex + direction) % _cards.length;
-    if (_currentIndex < 0) _currentIndex += _cards.length;
+    if (visibleCards.isEmpty) return;
+
+    // Find current visible index
+    int visibleIndex = visibleCards.indexWhere((c) => c == currentCard);
+    if (visibleIndex == -1) visibleIndex = 0;
+
+    visibleIndex = (visibleIndex + direction) % visibleCards.length;
+    if (visibleIndex < 0) visibleIndex += visibleCards.length;
+
+    // Map back to full list index
+    _currentIndex = _cards.indexOf(visibleCards[visibleIndex]);
     notifyListeners();
   }
 
@@ -71,26 +84,53 @@ class CardProvider with ChangeNotifier {
   }
 
   void editCard(CardModel updatedCard) {
-    _cards[_currentIndex] = updatedCard;
+    if (_currentIndex >= 0 && _currentIndex < _cards.length) {
+      _cards[_currentIndex] = updatedCard;
+      _saveData();
+      notifyListeners();
+    }
+  }
+
+  void deleteCard() {
+    if (_cards.isEmpty || _currentIndex < 0 || _currentIndex >= _cards.length) return;
+
+    _cards.removeAt(_currentIndex);
+
+    // Adjust current index
+    if (_cards.isEmpty) {
+      _currentIndex = 0;
+    } else if (_currentIndex >= _cards.length) {
+      _currentIndex = _cards.length - 1;
+    }
+
     _saveData();
     notifyListeners();
   }
 
-  void deleteCard() {
-    if (_cards.isEmpty) return;
-    _cards.removeAt(_currentIndex);
-    _currentIndex = _currentIndex > 0 ? _currentIndex - 1 : 0;
+  void toggleCardHidden(int index) {
+    if (index < 0 || index >= _cards.length) return;
+
+    _cards[index].isHidden = !_cards[index].isHidden;
+
+    // If we hid the current card, try to switch to first visible
+    if (_cards[index].isHidden && index == _currentIndex) {
+      final firstVisible = _cards.indexWhere((c) => !c.isHidden);
+      _currentIndex = firstVisible != -1 ? firstVisible : 0;
+    }
+
     _saveData();
     notifyListeners();
   }
 
   void addExpense(double amount, String desc, {bool saveAsPreset = false}) {
     if (currentCard == null) return;
+
     currentCard!.expenses.add(Expense(
       date: currentDate,
       amount: amount,
       description: desc,
     ));
+
     if (saveAsPreset) {
       var existing = currentCard!.presets.firstWhere(
         (p) => p.description == desc && p.amount == amount,
@@ -102,6 +142,7 @@ class CardProvider with ChangeNotifier {
         existing.frequency += 1;
       }
     }
+
     _saveData();
     notifyListeners();
   }
@@ -127,86 +168,90 @@ class CardProvider with ChangeNotifier {
     notifyListeners();
   }
 
-DateTime getPeriodStart(DateTime today, int cutoff) {
-  int year = today.year;
-  int month = today.month;
-  int day = cutoff;
-
-  // If today is on or before the cutoff day → we are still in the previous cycle
-  if (today.day <= cutoff) {
-    month--;
-    if (month < 1) {
-      month = 12;
-      year--;
-    }
-  }
-
-  // Handle months where cutoff day doesn't exist (e.g. 31 Feb)
-  final lastDay = DateTime(year, month + 1, 0).day;
-  if (day > lastDay) day = lastDay;
-
-  return DateTime(year, month, day);
-}
-
   double getCurrentExpense(CardModel card) {
-    final today = currentDate;
-    final start = getPeriodStart(today, card.monthlyCutoff);
+    final periodStart = getPeriodStart(currentDate, card.monthlyCutoff);
     return card.expenses
-        .where((e) => !e.date.isBefore(start))
+        .where((e) => !e.date.isBefore(periodStart))
         .fold(0.0, (sum, e) => sum + e.amount);
   }
 
   double getRebateUsed(CardModel card) {
-    final today = currentDate;
-    final start = getPeriodStart(today, card.rebateCutoff);
-    return card.expenses
-        .where((e) => !e.date.isBefore(start))
-        .fold(0.0, (sum, e) => sum + e.amount * card.extraRebatePct / 100);
+    final expense = getCurrentExpense(card);
+    final required = card.getRequiredSpend();
+    if (required <= 0) return 0.0;
+
+    final baseRebate = expense * (card.extraRebatePct / 100);
+    return baseRebate.clamp(0.0, card.quota);
   }
 
-  Future<void> pickCardImage() async {
-    if (currentCard == null) return;
-    final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      currentCard!.imagePath = image.path;
-      _saveData();
-      notifyListeners();
+  DateTime getPeriodStart(DateTime today, int cutoff) {
+    int year = today.year;
+    int month = today.month;
+
+    if (today.day <= cutoff) {
+      month--;
+      if (month < 1) {
+        month = 12;
+        year--;
+      }
     }
+
+    // Handle months with fewer days
+    int daysInMonth = DateTime(year, month + 1, 0).day;
+    int day = cutoff > daysInMonth ? daysInMonth : cutoff;
+
+    return DateTime(year, month, day);
   }
 
-Future<void> exportToCsv(BuildContext context) async {
-  final csvRows = <List<dynamic>>[];
-
-  csvRows.add(CardModel.csvHeader());
-  for (final card in _cards) {
-    csvRows.add(card.toCsvList());
-  }
-  csvRows.add([]);
-  csvRows.add(Expense.csvHeader());
-
-  for (final card in _cards) {
-    for (final exp in card.expenses) {
-      csvRows.add(exp.toCsvList(card.name));
+  Future<void> exportToCsv(BuildContext context) async {
+    if (_cards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards to export')),
+      );
+      return;
     }
+
+    List<List<dynamic>> csvRows = [];
+
+    // Card headers
+    csvRows.add(CardModel.csvHeader());
+
+    // Cards
+    for (var card in _cards) {
+      csvRows.add(card.toCsvList());
+    }
+
+    // Empty line separator
+    csvRows.add([]);
+
+    // Expenses header
+    csvRows.add(['Card', 'Date', 'Amount', 'Description']);
+
+    // Expenses
+    for (var card in _cards) {
+      for (var exp in card.expenses) {
+        csvRows.add(exp.toCsvList(card.name));
+      }
+    }
+
+    final csv = const ListToCsvConverter().convert(csvRows);
+
+    final path = await FilePicker.platform.getDirectoryPath();
+    if (path == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Export cancelled')),
+      );
+      return;
+    }
+
+    final datetimeMinute = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+    final file = io.File('$path/masterrebate_export_$datetimeMinute.csv');
+    await file.writeAsString(csv);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Saved to ${file.path}')),
+    );
   }
-
-  final csv = const ListToCsvConverter().convert(csvRows);
-
-  final path = await FilePicker.platform.getDirectoryPath();
-  if (path == null) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export cancelled')));
-    return;
-  }
-
-  final datetimeMinute = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
-  final file = io.File('$path/masterrebate_export_$datetimeMinute.csv');
-  await file.writeAsString(csv);
-
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    content: Text('Saved to ${file.path}'),
-  ));
-}
 
   Future<void> importFromCsv() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -232,55 +277,58 @@ Future<void> exportToCsv(BuildContext context) async {
     final rows = const CsvToListConverter().convert(csvString);
 
     List<CardModel> importedCards = [];
-    CardModel? currentCard;
-    Map<String, CardModel> cardMap = {};  // To find card by name for expenses
+    Map<String, CardModel> cardMap = {};
+
+    bool inExpensesSection = false;
 
     for (var row in rows) {
       if (row.isEmpty) continue;
+      final cleaned = row.map((e) => e?.toString().trim() ?? '').toList();
 
-      // Clean row
-      final cleanedRow = row.map((cell) => cell.toString().trim()).toList();
+      if (cleaned.isEmpty) continue;
 
-      // Skip comments and headers
-      if (cleanedRow[0].startsWith('#')) continue;
-      if (cleanedRow.length >= 5 && cleanedRow[0] == 'Card Name') continue;
-      if (cleanedRow.length >= 4 && cleanedRow[0] == 'Card') continue;
-
-      // Card configuration row
-      if (cleanedRow.length >= 5) {
-        try {
-          final name = cleanedRow[0];
-          if (name.isEmpty) continue;
-
-          currentCard = CardModel(
-            name: name,
-            monthlyCutoff: int.parse(cleanedRow[1]),
-            rebateCutoff: int.parse(cleanedRow[2]),
-            extraRebatePct: double.parse(cleanedRow[3]),
-            quota: double.parse(cleanedRow[4]),
-          );
-          importedCards.add(currentCard);
-          cardMap[name] = currentCard;
-        } catch (e) {
-          // Not a valid card row
-        }
+      // Detect section change
+      if (cleaned[0] == 'Card' && cleaned.length >= 4 &&
+          cleaned[1] == 'Date' && cleaned[2] == 'Amount') {
+        inExpensesSection = true;
+        continue;
       }
 
-      // Expense row
-      if (cleanedRow.length >= 4) {
-        try {
-          final cardName = cleanedRow[0];
-          final dateStr = cleanedRow[1];
-          final amount = double.parse(cleanedRow[2]);
-          final desc = cleanedRow[3];
+      if (!inExpensesSection) {
+        // Card row
+        if (cleaned.length >= 5 && cleaned[0].isNotEmpty) {
+          try {
+            final card = CardModel(
+              name: cleaned[0],
+              monthlyCutoff: int.tryParse(cleaned[1]) ?? 1,
+              rebateCutoff: int.tryParse(cleaned[2]) ?? 1,
+              extraRebatePct: double.tryParse(cleaned[3]) ?? 0.0,
+              quota: double.tryParse(cleaned[4]) ?? 0.0,
+            );
+            importedCards.add(card);
+            cardMap[card.name] = card;
+          } catch (_) {}
+        }
+      } else {
+        // Expense row
+        if (cleaned.length >= 4 && cleaned[0].isNotEmpty) {
+          try {
+            final cardName = cleaned[0];
+            final dateStr = cleaned[1];
+            final amountStr = cleaned[2];
+            final desc = cleaned[3];
 
-          final targetCard = cardMap[cardName];
-          if (targetCard != null) {
-            final date = DateFormat('yyyy-MM-dd').parse(dateStr);
-            targetCard.expenses.add(Expense(date: date, amount: amount, description: desc));
-          }
-        } catch (e) {
-          // Skip invalid expense
+            final target = cardMap[cardName];
+            if (target != null) {
+              final date = DateFormat('yyyy-MM-dd').tryParse(dateStr) ?? DateTime.now();
+              final amount = double.tryParse(amountStr) ?? 0.0;
+              target.expenses.add(Expense(
+                date: date,
+                amount: amount,
+                description: desc,
+              ));
+            }
+          } catch (_) {}
         }
       }
     }
@@ -301,12 +349,15 @@ Future<void> exportToCsv(BuildContext context) async {
   }
 
   void _loadData() {
-    String? data = prefs.getString('cards');
+    final data = prefs.getString('cards');
     if (data != null) {
-      Map<String, dynamic> jsonData = json.decode(data);
-      _cards = (jsonData['cards'] as List)
-          .map((c) => CardModel.fromJson(c))
-          .toList();
+      try {
+        final jsonData = json.decode(data) as Map<String, dynamic>;
+        final list = jsonData['cards'] as List<dynamic>? ?? [];
+        _cards = list.map((c) => CardModel.fromJson(c as Map<String, dynamic>)).toList();
+      } catch (_) {
+        _cards = [];
+      }
     }
     _currentIndex = _cards.isNotEmpty ? 0 : 0;
     notifyListeners();
