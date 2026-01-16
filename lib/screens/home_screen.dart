@@ -181,12 +181,18 @@ class _CardTab extends StatelessWidget {
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: card.imagePath != null
-                            ? Image.file(File(card.imagePath!), fit: BoxFit.cover)
-                            : Container(
-                                color: Theme.of(context).colorScheme.surfaceContainer,
-                                child: const Icon(Icons.credit_card, size: 32),
+                          ? AspectRatio(
+                              aspectRatio: 1.6,
+                              child: Image.file(
+                                File(card.imagePath!),
+                                fit: BoxFit.contain,
                               ),
-                      ),
+                            )
+                          : Container(
+                              color: Theme.of(context).colorScheme.surfaceContainer,
+                              child: const Icon(Icons.credit_card, size: 32),
+                            ),
+                        ),
                     ),
                   );
                 },

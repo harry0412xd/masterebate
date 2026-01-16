@@ -90,27 +90,33 @@ class CardSummary extends StatelessWidget {
               }
             },
             child: Container(
-              height: 180,
+              height: 220,
               width: double.infinity,
               decoration: BoxDecoration(
                 border: Border.all(color: Theme.of(context).colorScheme.outline),
                 borderRadius: BorderRadius.circular(16),
+                color: Theme.of(context).colorScheme.surfaceContainerLowest, // subtle bg
               ),
-              child: card.imagePath != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.file(
-                        File(card.imagePath!),
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: card.imagePath != null
+                    ? Center(                                 // ← center + contain
+                        child: AspectRatio(
+                          aspectRatio: 1002 / 629,
+                          child: Image.file(
+                            File(card.imagePath!),
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      )
+                    : Center(
                       child: Icon(
                         Icons.credit_card,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
+                        size: 80,
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
                       ),
                     ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
