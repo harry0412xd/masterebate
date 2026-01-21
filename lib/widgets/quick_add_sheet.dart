@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 import '../models/card_model.dart';
 
 void showQuickAddBottomSheet(BuildContext context) {
@@ -8,7 +8,7 @@ void showQuickAddBottomSheet(BuildContext context) {
   Preset? selectedPreset;
   final amountCtrl = TextEditingController();
 
-  final provider = Provider.of<CardProvider>(context, listen: false);
+  final provider = Provider.of<CardViewModel>(context, listen: false);
 
   showModalBottomSheet(
     context: context,
@@ -28,7 +28,7 @@ void showQuickAddBottomSheet(BuildContext context) {
             Text("Quick Add Expense", style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 24),
             DropdownButtonFormField<String>(
-              value: selectedCardName,
+              initialValue: selectedCardName,
               decoration: const InputDecoration(labelText: "Card"),
               items: provider.cards
                   .map((c) => DropdownMenuItem(value: c.name, child: Text(c.name)))
@@ -43,7 +43,7 @@ void showQuickAddBottomSheet(BuildContext context) {
             const SizedBox(height: 16),
             if (selectedCardName != null) ...[
               DropdownButtonFormField<Preset>(
-                value: selectedPreset,
+                initialValue: selectedPreset,
                 decoration: const InputDecoration(labelText: "Preset (optional)"),
                 items: provider.cards
                     .firstWhere((c) => c.name == selectedCardName!)

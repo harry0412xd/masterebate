@@ -1,10 +1,11 @@
+// lib/views/overview_view.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/card_viewmodel.dart';
 import '../widgets/quota_progress_bar.dart';
 
-class OverviewScreen extends StatelessWidget {
-  const OverviewScreen({super.key});
+class OverviewView extends StatelessWidget {
+  const OverviewView({super.key});
 
   @override
   Widget build(BuildContext context) {

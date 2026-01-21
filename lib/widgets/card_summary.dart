@@ -3,14 +3,13 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 import '../models/card_model.dart';
 
 class CardSummary extends StatelessWidget {
   final CardModel card;
-  final CardProvider provider;
+  final CardViewModel provider;
 
   const CardSummary({
     super.key,
@@ -113,7 +112,7 @@ class CardSummary extends StatelessWidget {
                       child: Icon(
                         Icons.credit_card,
                         size: 80,
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                        color: Theme.of(context).colorScheme.primary.withAlpha((0.5 * 255).round()),
                       ),
                     ),
               ),

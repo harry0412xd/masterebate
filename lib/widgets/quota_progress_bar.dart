@@ -47,7 +47,7 @@ class QuotaProgressBar extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.red.withOpacity(0.6), Colors.red],
+                        colors: [Colors.red.withAlpha((0.6 * 255).round()), Colors.red],
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),

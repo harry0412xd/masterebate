@@ -1,11 +1,11 @@
-// lib/screens/settings_screen.dart
+// lib/views/settings_view.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/card_viewmodel.dart';
-import '../views/manage_cards_view.dart';
+import 'manage_cards_view.dart';
 
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+class SettingsView extends StatelessWidget {
+  const SettingsView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -18,12 +18,31 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.file_download),
             title: const Text('Import from CSV'),
-            onTap: () => provider.importFromCsv(),
+            onTap: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final msg = await provider.importFromCsv();
+              if (msg == null) return;
+              if (msg == 'cancelled') {
+                messenger.showSnackBar(const SnackBar(content: Text('Import cancelled')));
+              } else {
+                messenger.showSnackBar(SnackBar(content: Text(msg)));
+              }
+            },
           ),
           ListTile(
             leading: const Icon(Icons.file_upload),
             title: const Text('Export to CSV'),
-            onTap: () => provider.exportToCsv(),
+            onTap: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final result = await provider.exportToCsv();
+              if (result == 'no_cards') {
+                messenger.showSnackBar(const SnackBar(content: Text('No cards to export')));
+              } else if (result == 'cancelled') {
+                messenger.showSnackBar(const SnackBar(content: Text('Export cancelled')));
+              } else if (result != null) {
+                messenger.showSnackBar(SnackBar(content: Text('Saved to $result')));
+              }
+            }, 
           ),
           const Divider(),
           SwitchListTile(

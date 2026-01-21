@@ -1,4 +1,4 @@
-// lib/screens/home_screen.dart
+// lib/views/home_view.dart
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -10,17 +10,17 @@ import '../widgets/preset_dialog.dart';
 import '../widgets/custom_entry_dialog.dart';
 import '../widgets/card_summary.dart';
 import '../widgets/expense_list.dart';
-import '../views/overview_view.dart';
-import '../views/settings_view.dart';
+import 'overview_view.dart';
+import 'settings_view.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class HomeView extends StatefulWidget {
+  const HomeView({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeView> createState() => _HomeViewState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -30,6 +30,26 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
+
+    // In debug builds seed initial data from assets for quick testing
+    if (kDebugMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final provider = Provider.of<CardViewModel>(context, listen: false);
+        if (provider.cards.isEmpty) {
+          try {
+            final assetBundle = DefaultAssetBundle.of(context);
+            final messenger = ScaffoldMessenger.of(context);
+            final csv = await assetBundle.loadString('assets/test_seed.csv');
+            final msg = provider.importFromCsvString(csv);
+            if (msg != null) {
+              messenger.showSnackBar(SnackBar(content: Text(msg)));
+            }
+          } catch (e) {
+            debugPrint('Seed CSV import failed: $e');
+          }
+        }
+      });
+    }
   }
 
   @override
@@ -154,7 +174,7 @@ class _CardTab extends StatelessWidget {
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+                                    color: Theme.of(context).colorScheme.primary.withAlpha((0.4 * 255).round()),
                                     blurRadius: 8,
                                     offset: const Offset(0, 3),
                                   )
@@ -205,6 +225,7 @@ class _CardTab extends StatelessWidget {
     );
   }
 }
+
 class _BottomQuickAddBar extends StatelessWidget {
   const _BottomQuickAddBar();
 

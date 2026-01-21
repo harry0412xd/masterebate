@@ -1,10 +1,10 @@
 // lib/main.dart
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'providers/card_provider.dart';
-import 'screens/home_screen.dart';
+import 'viewmodels/card_viewmodel.dart';
+import 'services/card_repository.dart';
+import 'views/home_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => CardProvider(prefs),
+      create: (_) => CardViewModel(CardRepository(prefs)),
       child: MaterialApp(
         title: 'MasterRebate',
         theme: ThemeData(
@@ -34,7 +34,7 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
         themeMode: ThemeMode.system, // or .light / .dark if you add toggle later
-        home: const HomeScreen(),
+        home: const HomeView(),
         debugShowCheckedModeBanner: false,
       ),
     );

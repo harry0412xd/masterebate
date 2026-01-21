@@ -1,10 +1,11 @@
+// lib/views/manage_cards_view.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/card_viewmodel.dart';
 import '../models/card_model.dart';
 
-class ManageCardsScreen extends StatelessWidget {
-  const ManageCardsScreen({super.key});
+class ManageCardsView extends StatelessWidget {
+  const ManageCardsView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -54,8 +55,7 @@ class ManageCardsScreen extends StatelessWidget {
                     IconButton(
                       icon: const Icon(Icons.delete_outline, color: Colors.red),
                       tooltip: 'Delete card',
-                      onPressed: () =>
-                          _confirmDelete(context, provider, index, card),
+                      onPressed: () => _confirmDelete(context, provider, index, card),
                     ),
                   ],
                 ),
