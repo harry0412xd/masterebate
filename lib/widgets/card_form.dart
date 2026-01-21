@@ -28,7 +28,9 @@ class _CardFormState extends State<CardForm> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.card?.name ?? '');
     _monthlyCtrl = TextEditingController(text: widget.card?.monthlyCutoff.toString() ?? '');
-    _rebateCtrl = TextEditingController(text: widget.card?.rebateCutoff.toString() ?? '');
+    _rebateCtrl = TextEditingController(
+      text: widget.card?.rebateCutoff.toString() ?? '31',
+    );
     _pctCtrl = TextEditingController(text: widget.card?.extraRebatePct.toString() ?? '');
     _quotaCtrl = TextEditingController(text: widget.card?.quota.toString() ?? '');
     _imagePath = widget.card?.imagePath;

@@ -42,3 +42,12 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 pubspec.lock
+
+windows/flutter/*
+linux/flutter/*
+macos/*
+ios/*
+
+
+
+
