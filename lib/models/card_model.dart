@@ -5,27 +5,32 @@ class Expense {
   DateTime date;
   double amount;
   String description;
+  double rebatePct; // per-entry rebate percentage (prefilled from card)
 
   Expense({
     required this.date,
     required this.amount,
     required this.description,
+    this.rebatePct = 0.0,
   });
 
   static List csvHeader() {
     return [
-      'Card'
+      'Card',
       'Date',
       'Amount',
       'Description',
+      'Extra Rebate %',
     ];
   }
+
   List toCsvList(String cardName) {
     return [
       cardName,
       DateFormat('yyyy-MM-dd').format(date),
       amount,
       description,
+      rebatePct,
     ];
   }
 
@@ -33,12 +38,14 @@ class Expense {
         'date': date.toIso8601String(),
         'amount': amount,
         'description': description,
+        'rebatePct': rebatePct,
       };
 
   factory Expense.fromJson(Map<String, dynamic> json) => Expense(
         date: DateTime.parse(json['date']),
-        amount: json['amount'],
+        amount: (json['amount'] as num).toDouble(),
         description: json['description'],
+        rebatePct: json['rebatePct'] != null ? (json['rebatePct'] as num).toDouble() : 0.0,
       );
 
 }
@@ -47,23 +54,27 @@ class Preset {
   String description;
   double amount;
   int frequency;
+  double rebatePct;
 
   Preset({
     required this.description,
     required this.amount,
     this.frequency = 1,
+    this.rebatePct = 0.0,
   });
 
   Map<String, dynamic> toJson() => {
         'description': description,
         'amount': amount,
         'frequency': frequency,
+        'rebatePct': rebatePct,
       };
 
   factory Preset.fromJson(Map<String, dynamic> json) => Preset(
         description: json['description'],
-        amount: json['amount'],
-        frequency: json['frequency'],
+        amount: (json['amount'] as num).toDouble(),
+        frequency: json['frequency'] ?? 1,
+        rebatePct: json['rebatePct'] != null ? (json['rebatePct'] as num).toDouble() : 0.0,
       );
 }
 

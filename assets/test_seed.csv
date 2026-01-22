@@ -1,0 +1,8 @@
+Card,Monthly Cutoff,Rebate Cutoff,Extra Rebate %,Quota
+Debug Card,15,31,5,100
+
+Preset,Card,Description,Amount,Extra Rebate %,Frequency
+Debug Card,Snack,10,5,1
+
+Card,Date,Amount,Description,Extra Rebate %
+Debug Card,2024-01-01,50,Initial,5

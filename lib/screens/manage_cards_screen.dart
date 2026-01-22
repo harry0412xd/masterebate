@@ -98,6 +98,12 @@ class ManageCardsScreen extends StatelessWidget {
               provider.setCurrentIndex(index);
               provider.deleteCard();
 
+              // Restore a sensible current index if cards remain
+              if (provider.cards.isNotEmpty) {
+                final newIndex = originalIndex < provider.cards.length ? originalIndex : provider.cards.length - 1;
+                provider.setCurrentIndex(newIndex);
+              }
+
               Navigator.pop(ctx);
 
               // If no cards left → go back to previous screen

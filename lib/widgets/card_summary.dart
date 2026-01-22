@@ -1,12 +1,13 @@
 // lib/widgets/card_summary.dart
-import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../providers/card_provider.dart';
 import '../models/card_model.dart';
+import 'package:provider/provider.dart';
+import '../widgets/card_form.dart';
+import 'image_display.dart';
 
 class CardSummary extends StatelessWidget {
   final CardModel card;
@@ -18,23 +19,6 @@ class CardSummary extends StatelessWidget {
     required this.provider,
   });
 
-  Future<void> _pickImage(BuildContext context) async {
-    final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      final updated = CardModel(
-        name: card.name,
-        monthlyCutoff: card.monthlyCutoff,
-        rebateCutoff: card.rebateCutoff,
-        extraRebatePct: card.extraRebatePct,
-        quota: card.quota,
-        imagePath: image.path,
-        expenses: card.expenses,    // Preserve existing expenses
-        presets: card.presets,      // Preserve existing presets
-      );
-      provider.editCard(updated);
-    }
-  }
 
   void _deleteCard(BuildContext context) {
     showDialog(
@@ -80,7 +64,22 @@ class CardSummary extends StatelessWidget {
       child: Column(
         children: [
           GestureDetector(
-            onTap: () => _pickImage(context),
+            onTap: () {
+              // Open edit dialog for this card (prefill values and allow picking image)
+              final provider = Provider.of<CardProvider>(context, listen: false);
+              final index = provider.cards.indexOf(card);
+              if (index != -1) provider.setCurrentIndex(index);
+
+              showDialog(
+                context: context,
+                builder: (_) => CardForm(
+                  card: card,
+                  onSave: (updated) {
+                    provider.editCard(updated);
+                  },
+                ),
+              );
+            },
             onLongPress: () {
               if (!kIsWeb &&
                   defaultTargetPlatform != TargetPlatform.windows &&
@@ -103,10 +102,7 @@ class CardSummary extends StatelessWidget {
                     ? Center(                                 // ← center + contain
                         child: AspectRatio(
                           aspectRatio: 1002 / 629,
-                          child: Image.file(
-                            File(card.imagePath!),
-                            fit: BoxFit.contain,
-                          ),
+                          child: ImageDisplay(pathOrDataUrl: card.imagePath, fit: BoxFit.contain),
                         ),
                       )
                     : Center(

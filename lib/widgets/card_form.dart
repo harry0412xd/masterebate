@@ -1,8 +1,11 @@
 // lib/widgets/card_form.dart
 import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/card_model.dart';
+import 'image_display.dart';
 
 class CardForm extends StatefulWidget {
   final CardModel? card;
@@ -50,7 +53,14 @@ class _CardFormState extends State<CardForm> {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
-      setState(() => _imagePath = image.path);
+      if (kIsWeb) {
+        // On web, read bytes and store as data URL
+        final bytes = await image.readAsBytes();
+        final b64 = base64Encode(bytes);
+        setState(() => _imagePath = 'data:image/png;base64,$b64');
+      } else {
+        setState(() => _imagePath = image.path);
+      }
     }
   }
 
@@ -104,7 +114,7 @@ class _CardFormState extends State<CardForm> {
                   padding: const EdgeInsets.only(top: 12),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.file(File(_imagePath!), height: 120, fit: BoxFit.cover),
+                    child: ImageDisplay(pathOrDataUrl: _imagePath, height: 120, fit: BoxFit.cover),
                   ),
                 ),
             ],

@@ -1,29 +1,28 @@
-// lib/providers/card_provider.dart
+// lib/viewmodels/card_viewmodel.dart
 import 'dart:convert';
-import 'dart:io' as io;
 import 'dart:typed_data';
+import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:intl/intl.dart';
 import '../models/card_model.dart';
+import '../services/card_repository.dart';
 import '../utils/file_saver.dart';
 
-class CardProvider with ChangeNotifier {
+class CardViewModel with ChangeNotifier {
   List<CardModel> _cards = [];
   int _currentIndex = 0;
   DateTime _debugDate = DateTime.now();
-  final SharedPreferences prefs;
+  final CardRepository repository;
 
-  CardProvider(this.prefs) {
+  CardViewModel(this.repository) {
     _loadData();
   }
 
   // ── Visible cards only ────────────────────────────────────────────────
-  List<CardModel> get visibleCards =>
-      _cards.where((c) => !c.isHidden).toList();
+  List<CardModel> get visibleCards => _cards.where((c) => !c.isHidden).toList();
 
   // ── Current card logic (prefers visible, falls back safely) ───────────
   CardModel? get currentCard {
@@ -40,7 +39,6 @@ class CardProvider with ChangeNotifier {
       if (firstVisibleIndex != -1) {
         _currentIndex = firstVisibleIndex;
       }
-      // If still no visible cards, we return the hidden one only for manage screen
     }
 
     return _cards[_currentIndex];
@@ -86,16 +84,34 @@ class CardProvider with ChangeNotifier {
 
   void editCard(CardModel updatedCard) {
     if (_currentIndex >= 0 && _currentIndex < _cards.length) {
-      _cards[_currentIndex] = updatedCard;
+      // preserve expenses/presets when editing unless explicitly changed
+      final existing = _cards[_currentIndex];
+      final merged = CardModel(
+        name: updatedCard.name,
+        monthlyCutoff: updatedCard.monthlyCutoff,
+        rebateCutoff: updatedCard.rebateCutoff,
+        extraRebatePct: updatedCard.extraRebatePct,
+        quota: updatedCard.quota,
+        imagePath: updatedCard.imagePath ?? existing.imagePath,
+        isHidden: updatedCard.isHidden,
+        expenses: existing.expenses,
+        presets: existing.presets,
+      );
+      _cards[_currentIndex] = merged;
       _saveData();
       notifyListeners();
     }
   }
 
   void deleteCard() {
-    if (_cards.isEmpty || _currentIndex < 0 || _currentIndex >= _cards.length) return;
+    deleteCardAt(_currentIndex);
+  }
 
-    _cards.removeAt(_currentIndex);
+  /// Delete a card at a specific index (test-friendly)
+  void deleteCardAt(int index) {
+    if (_cards.isEmpty || index < 0 || index >= _cards.length) return;
+
+    _cards.removeAt(index);
 
     // Adjust current index
     if (_cards.isEmpty) {
@@ -126,6 +142,7 @@ class CardProvider with ChangeNotifier {
   void addExpense(double amount, String desc, {bool saveAsPreset = false, double? rebatePct}) {
     if (currentCard == null) return;
 
+    // Prefill rebate percent from card's default when not provided
     final pct = rebatePct ?? currentCard!.extraRebatePct;
 
     currentCard!.expenses.add(Expense(
@@ -144,6 +161,7 @@ class CardProvider with ChangeNotifier {
         currentCard!.presets.add(existing);
       } else {
         existing.frequency += 1;
+        // keep preset rebatePct in sync if it was previously unset
         if (existing.rebatePct == 0.0) existing.rebatePct = pct;
       }
     }
@@ -184,6 +202,7 @@ class CardProvider with ChangeNotifier {
   double getRebateUsed(CardModel card) {
     final periodStart = getPeriodStart(currentDate, card.monthlyCutoff);
 
+    // Sum per-expense rebate contribution using each expense's rebatePct
     final sum = card.expenses
         .where((e) => !e.date.isBefore(periodStart))
         .fold(0.0, (double acc, e) => acc + e.amount * (e.rebatePct / 100));
@@ -210,12 +229,9 @@ class CardProvider with ChangeNotifier {
     return DateTime(year, month, day);
   }
 
-  Future<void> exportToCsv(BuildContext context) async {
+  Future<String?> exportToCsv() async {
     if (_cards.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No cards to export')),
-      );
-      return;
+      return 'no_cards';
     }
 
     List<List<dynamic>> csvRows = [];
@@ -234,7 +250,7 @@ class CardProvider with ChangeNotifier {
     // Presets header
     csvRows.add(['Preset', 'Card', 'Description', 'Amount', 'Extra Rebate %', 'Frequency']);
 
-    // Presets rows
+    // Presets
     for (var card in _cards) {
       for (var p in card.presets) {
         csvRows.add([card.name, p.description, p.amount, p.rebatePct, p.frequency]);
@@ -244,7 +260,7 @@ class CardProvider with ChangeNotifier {
     // Empty line separator before expenses
     csvRows.add([]);
 
-    // Expenses header (includes rebate percent)
+    // Expenses header (includes per-entry rebate percent)
     csvRows.add(Expense.csvHeader());
 
     // Expenses
@@ -254,7 +270,7 @@ class CardProvider with ChangeNotifier {
       }
     }
 
-    final csv = const ListToCsvConverter().convert(csvRows);
+    final csv = await exportCsvStringFromRows(csvRows);
 
     final datetimeMinute = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
 
@@ -262,53 +278,48 @@ class CardProvider with ChangeNotifier {
     if (kIsWeb) {
       try {
         final filename = 'masterrebate_export_$datetimeMinute.csv';
+        // saveCsvAndReturn is provided by a conditional import (web or stub)
         final res = await saveCsvAndReturn(csv, filename);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export: $res')));
-        return;
+        return res;
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
-        return;
+        if (kDebugMode) debugPrint('Web save/download failed: $e');
+        return 'failed';
       }
     }
 
-    // Non-web: try to pick a directory, but catch any error and fallback
+    // Non-web platforms: try to use a directory picker but handle any error type
     String? path;
     bool pickerUnavailable = false;
     try {
       path = await FilePicker.platform.getDirectoryPath();
     } catch (e) {
-      // Could be UnimplementedError on some platforms
+      // Catch any error (UnimplementedError, UnsupportedError, etc.) and fallback
+      if (kDebugMode) debugPrint('FilePicker.getDirectoryPath error: $e');
       pickerUnavailable = true;
       path = null;
     }
 
     if (path == null && pickerUnavailable) {
+      // Fall back to system temp directory
       final tmp = io.Directory.systemTemp;
       final outFile = io.File('${tmp.path.replaceAll('\\', '/')}/masterrebate_export_$datetimeMinute.csv');
       await outFile.writeAsString(csv);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved to ${outFile.path}')));
-      return;
+      return outFile.path;
     }
 
     if (path == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Export cancelled')),
-      );
-      return;
+      // User cancelled
+      return 'cancelled';
     }
 
     final file = io.File('$path/masterrebate_export_$datetimeMinute.csv');
     try {
       await file.writeAsString(csv);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved to ${file.path}')),
-      );
-      return;
+      return file.path;
     } catch (e) {
-      // On Android especially, writing to arbitrary directories can be blocked by scoped storage
       if (kDebugMode) debugPrint('Write to selected path failed: $e');
 
-      // Try Android Downloads folder as a friendly fallback
+      // Try Android Downloads folder first
       if (!kIsWeb) {
         try {
           if (io.Platform.isAndroid) {
@@ -316,30 +327,73 @@ class CardProvider with ChangeNotifier {
             if (!await downloadsDir.exists()) await downloadsDir.create(recursive: true);
             final outFile = io.File('${downloadsDir.path}/masterrebate_export_$datetimeMinute.csv');
             await outFile.writeAsString(csv);
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved to ${outFile.path}')));
-            return;
+            return outFile.path;
           }
         } catch (e2) {
           if (kDebugMode) debugPrint('Write to Downloads failed: $e2');
         }
       }
 
-      // Last resort: system temp
       final tmp = io.Directory.systemTemp;
       final outFile = io.File('${tmp.path.replaceAll('\\', '/')}/masterrebate_export_$datetimeMinute.csv');
       await outFile.writeAsString(csv);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved to ${outFile.path} (fallback)')));
-      return;
+      return outFile.path;
     }
   }
 
-  Future<void> importFromCsv() async {
+  /// Returns CSV string for given rows (split out for testability)
+  Future<String> exportCsvStringFromRows(List<List<dynamic>> rows) async {
+    return const ListToCsvConverter().convert(rows);
+  }
+
+  /// Returns CSV string for current cards (testable without file IO)
+  Future<String> exportCsvString() async {
+    List<List<dynamic>> csvRows = [];
+
+    // Card headers
+    csvRows.add(CardModel.csvHeader());
+
+    // Cards
+    for (var card in _cards) {
+      csvRows.add(card.toCsvList());
+    }
+
+    // Empty line separator
+    csvRows.add([]);
+
+    // Presets header
+    csvRows.add(['Preset', 'Card', 'Description', 'Amount', 'Extra Rebate %', 'Frequency']);
+
+    // Presets
+    for (var card in _cards) {
+      for (var p in card.presets) {
+        csvRows.add([card.name, p.description, p.amount, p.rebatePct, p.frequency]);
+      }
+    }
+
+    // Empty line separator before expenses
+    csvRows.add([]);
+
+    // Expenses header (includes per-entry rebate percent)
+    csvRows.add(Expense.csvHeader());
+
+    // Expenses
+    for (var card in _cards) {
+      for (var exp in card.expenses) {
+        csvRows.add(exp.toCsvList(card.name));
+      }
+    }
+
+    return exportCsvStringFromRows(csvRows);
+  }
+
+  Future<String?> importFromCsv() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['csv'],
       withData: true,
     );
-    if (result == null || result.files.isEmpty) return;
+    if (result == null || result.files.isEmpty) return 'cancelled';
 
     final platformFile = result.files.single;
     Uint8List? fileBytes;
@@ -347,24 +401,75 @@ class CardProvider with ChangeNotifier {
     if (kIsWeb) {
       fileBytes = platformFile.bytes;
     } else {
-      if (platformFile.path == null) return;
+      if (platformFile.path == null) return 'cancelled';
       fileBytes = await io.File(platformFile.path!).readAsBytes();
     }
 
-    if (fileBytes == null) return;
+    if (fileBytes == null) return 'cancelled';
 
     final csvString = utf8.decode(fileBytes);
-    importFromCsvString(csvString);
+    return importFromCsvString(csvString);
   }
 
-  /// Import CSV content from a raw CSV string (testable/debug helper)
+  /// Import CSV content from a raw CSV string (testable)
   String? importFromCsvString(String csvString) {
-    final rows = const CsvToListConverter().convert(csvString);
+    final originalRows = const CsvToListConverter().convert(csvString);
+    List<List<dynamic>> rows = originalRows.map((r) => r.cast<dynamic>()).toList();
 
     List<CardModel> importedCards = [];
     Map<String, CardModel> cardMap = {};
 
     bool inExpensesSection = false;
+
+    // Debug: inspect row shapes before fallback
+    if (rows.isNotEmpty) {
+      final first = rows[0];
+      if (kDebugMode) {
+        debugPrint('DEBUG rows.length=${rows.length}, first.length=${first.length}');
+        debugPrint('DEBUG first types: ${first.map((e) => e.runtimeType).toList()}');
+      }
+    }
+
+    // Fallback: some CSV sources may return a single row containing newlines
+    if (rows.length == 1) {
+      final first = rows[0];
+
+      // Case A: single cell string with embedded newlines
+      if (first.length == 1 && first[0] is String && first[0].toString().contains('\n')) {
+        if (kDebugMode) debugPrint('Fallback: single-cell CSV detected');
+        final raw = first[0].toString();
+        final lines = raw.split(RegExp(r'\r?\n'));
+        final parsed = <List<dynamic>>[];
+        for (var line in lines) {
+          if (line.trim().isEmpty) continue;
+          parsed.add(line.split(',').map((c) => c.trim()).toList());
+        }
+        if (kDebugMode) debugPrint('Fallback: parsed into ${parsed.length} rows from single-cell');
+        rows = parsed;
+      }
+
+      // Case B: CsvToListConverter produced one row but with many cells (flattened). Rebuild raw and split by newlines.
+      else if (first.length > 1) {
+        if (kDebugMode) debugPrint('Fallback: single-row but multiple cells detected, trying rebuild');
+        final raw = first.map((e) => e?.toString() ?? '').join(',');
+        final lines = raw.split(RegExp(r'\r?\n'));
+        final parsed = <List<dynamic>>[];
+        for (var line in lines) {
+          if (line.trim().isEmpty) continue;
+          parsed.add(line.split(',').map((c) => c.trim()).toList());
+        }
+        if (kDebugMode) debugPrint('Fallback: parsed into ${parsed.length} rows from rebuilt raw');
+        rows = parsed;
+      }
+    }
+
+    // Debugging: show parsed rows
+    if (kDebugMode) {
+      debugPrint('Parsed rows count: ${rows.length}');
+      for (var r in rows) {
+        debugPrint('PARSED ROW: $r');
+      }
+    }
 
     bool inPresetsSection = false;
     for (var row in rows) {
@@ -387,22 +492,32 @@ class CardProvider with ChangeNotifier {
       }
 
       if (!inExpensesSection && !inPresetsSection) {
-        // Card row
-        if (cleaned.length >= 5 && cleaned[0].isNotEmpty) {
+        // Card row (skip header-ish rows)
+        final headerKeywords = ['card','name','monthly', 'rebate', 'quota', 'cutoff', 'extra', 'amount', 'date', 'description', '%'];
+        final headerMatchCount = headerKeywords.fold<int>(0, (acc, k) => acc + (cleaned.any((c) => c.toLowerCase().contains(k)) ? 1 : 0));
+        final looksLikeHeader = headerMatchCount >= 2; // require at least two header-like tokens to avoid false positives like card names
+        if (looksLikeHeader) continue;
+
+        if (cleaned.length >= 2 && cleaned[0].isNotEmpty) {
           try {
+            final monthly = cleaned.length > 1 ? int.tryParse(cleaned[1]) ?? 1 : 1;
+            final rebate = cleaned.length > 2 ? int.tryParse(cleaned[2]) ?? 1 : 1;
+            final extra = cleaned.length > 3 ? double.tryParse(cleaned[3]) ?? 0.0 : 0.0;
+            final quota = cleaned.length > 4 ? double.tryParse(cleaned[4]) ?? 0.0 : 0.0;
+
             final card = CardModel(
               name: cleaned[0],
-              monthlyCutoff: int.tryParse(cleaned[1]) ?? 1,
-              rebateCutoff: int.tryParse(cleaned[2]) ?? 1,
-              extraRebatePct: double.tryParse(cleaned[3]) ?? 0.0,
-              quota: double.tryParse(cleaned[4]) ?? 0.0,
+              monthlyCutoff: monthly,
+              rebateCutoff: rebate,
+              extraRebatePct: extra,
+              quota: quota,
             );
             importedCards.add(card);
             cardMap[card.name] = card;
           } catch (_) {}
         }
       } else if (inPresetsSection) {
-        // Preset row: [CardName, Description, Amount, Extra Rebate %, Frequency]
+        // Preset row: expected [CardName, Description, Amount, Extra Rebate %, Frequency]
         if (cleaned.length >= 3 && cleaned[0].isNotEmpty) {
           try {
             final cardName = cleaned[0];
@@ -457,23 +572,12 @@ class CardProvider with ChangeNotifier {
   }
 
   void _saveData() {
-    prefs.setString(
-      'cards',
-      json.encode({'cards': _cards.map((c) => c.toJson()).toList()}),
-    );
+    repository.saveCards(_cards);
   }
 
-  void _loadData() {
-    final data = prefs.getString('cards');
-    if (data != null) {
-      try {
-        final jsonData = json.decode(data) as Map<String, dynamic>;
-        final list = jsonData['cards'] as List<dynamic>? ?? [];
-        _cards = list.map((c) => CardModel.fromJson(c as Map<String, dynamic>)).toList();
-      } catch (_) {
-        _cards = [];
-      }
-    }
+  void _loadData() async {
+    final loaded = await repository.loadCards();
+    _cards = loaded;
     _currentIndex = _cards.isNotEmpty ? 0 : 0;
     notifyListeners();
   }

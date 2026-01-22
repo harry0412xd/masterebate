@@ -10,6 +10,7 @@ import '../widgets/preset_dialog.dart';
 import '../widgets/custom_entry_dialog.dart';
 import '../widgets/card_summary.dart';
 import '../widgets/expense_list.dart';
+import '../widgets/image_display.dart';
 import '../screens/overview_screen.dart';
 import '../screens/settings_screen.dart';
 
@@ -30,6 +31,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
+
+    // Debug-only: import seed CSV on first run when there are no cards
+    if (kDebugMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final provider = Provider.of<CardProvider>(context, listen: false);
+        if (provider.cards.isEmpty) {
+          try {
+            final csv = await DefaultAssetBundle.of(context).loadString('assets/test_seed.csv');
+            final msg = provider.importFromCsvString(csv);
+            if (msg != null) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+            }
+          } catch (e) {
+            // quietly ignore in debug if asset missing
+            if (kDebugMode) debugPrint('Debug seed import failed: $e');
+          }
+        }
+      });
+    }
   }
 
   @override
@@ -165,10 +185,7 @@ class _CardTab extends StatelessWidget {
                         child: card.imagePath != null
                             ? AspectRatio(
                                 aspectRatio: 1002 / 629,
-                                child: Image.file(
-                                  File(card.imagePath!),
-                                  fit: BoxFit.contain,
-                                ),
+                                child: ImageDisplay(pathOrDataUrl: card.imagePath, fit: BoxFit.contain),
                               )
                             : Container(
                                 color: Theme.of(context).colorScheme.surfaceContainer,
@@ -233,7 +250,8 @@ class _BottomQuickAddBar extends StatelessWidget {
                       showDialog(
                         context: context,
                         builder: (_) => CustomEntryDialog(
-                          onAdd: (amt, desc, save) => provider.addExpense(amt, desc, saveAsPreset: save),
+                          defaultRebatePct: provider.currentCard?.extraRebatePct ?? 0.0,
+                          onAdd: (amt, desc, save, pct) => provider.addExpense(amt, desc, saveAsPreset: save, rebatePct: pct),
                         ),
                       );
                     },

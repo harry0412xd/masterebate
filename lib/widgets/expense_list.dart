@@ -89,12 +89,23 @@ class _ExpenseListState extends State<ExpenseList> {
                   DateFormat('d MMM yyyy • HH:mm').format(expense.date),
                   style: const TextStyle(fontSize: 12),
                 ),
-                trailing: Text(
-                  'HKD ${expense.amount.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'HKD ${expense.amount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${expense.rebatePct.toStringAsFixed(1)}%',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               );
             },

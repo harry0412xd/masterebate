@@ -26,7 +26,7 @@ class _PresetDialogState extends State<PresetDialog> {
             final p = widget.card.presets[i];
             return ListTile(
               title: Text('${p.description} – \$${p.amount.toStringAsFixed(2)}'),
-              subtitle: Text('Used ${p.frequency} time${p.frequency == 1 ? '' : 's'}'),
+              subtitle: Text('Used ${p.frequency} time${p.frequency == 1 ? '' : 's'} • ${p.rebatePct.toStringAsFixed(1)}%'),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -53,6 +53,7 @@ class _PresetDialogState extends State<PresetDialog> {
   void _edit(Preset p) {
     final descCtrl = TextEditingController(text: p.description);
     final amountCtrl = TextEditingController(text: p.amount.toString());
+    final rebateCtrl = TextEditingController(text: p.rebatePct.toString());
 
     showDialog(
       context: context,
@@ -67,6 +68,11 @@ class _PresetDialogState extends State<PresetDialog> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Amount'),
             ),
+            TextField(
+              controller: rebateCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Extra Rebate %'),
+            ),
           ],
         ),
         actions: [
@@ -74,9 +80,10 @@ class _PresetDialogState extends State<PresetDialog> {
           TextButton(
             onPressed: () {
               final newAmount = double.tryParse(amountCtrl.text);
+              final newPct = double.tryParse(rebateCtrl.text) ?? 0.0;
               if (newAmount != null) {
                 Provider.of<CardProvider>(context, listen: false)
-                    .editPreset(p, descCtrl.text, newAmount);
+                    .editPreset(p, descCtrl.text, newAmount, newPct);
                 Navigator.pop(context);
                 setState(() {});
               }

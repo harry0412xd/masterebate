@@ -2,9 +2,10 @@
 import 'package:flutter/material.dart';
 
 class CustomEntryDialog extends StatefulWidget {
-  final Function(double, String, bool) onAdd;
+  final Function(double, String, bool, double?) onAdd;
+  final double defaultRebatePct;
 
-  const CustomEntryDialog({super.key, required this.onAdd});
+  const CustomEntryDialog({super.key, required this.onAdd, required this.defaultRebatePct});
 
   @override
   State<CustomEntryDialog> createState() => _CustomEntryDialogState();
@@ -14,12 +15,20 @@ class _CustomEntryDialogState extends State<CustomEntryDialog> {
   final _formKey = GlobalKey<FormState>();
   final _amountCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
+  final _rebateCtrl = TextEditingController();
   bool _saveAsPreset = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _rebateCtrl.text = widget.defaultRebatePct.toString();
+  }
 
   @override
   void dispose() {
     _amountCtrl.dispose();
     _descCtrl.dispose();
+    _rebateCtrl.dispose();
     super.dispose();
   }
 
@@ -46,6 +55,11 @@ class _CustomEntryDialogState extends State<CustomEntryDialog> {
               controller: _descCtrl,
               decoration: const InputDecoration(labelText: 'Description (optional)'),
             ),
+            TextFormField(
+              controller: _rebateCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Extra Rebate %'),
+            ),
             CheckboxListTile(
               title: const Text('Save as Preset'),
               value: _saveAsPreset,
@@ -64,10 +78,12 @@ class _CustomEntryDialogState extends State<CustomEntryDialog> {
             if (_formKey.currentState!.validate()) {
               final amount = double.parse(_amountCtrl.text);
               final desc = _descCtrl.text.isEmpty ? 'Custom' : _descCtrl.text;
-              widget.onAdd(amount, desc, _saveAsPreset);
+              final pct = double.tryParse(_rebateCtrl.text) ?? widget.defaultRebatePct;
+              widget.onAdd(amount, desc, _saveAsPreset, pct);
               Navigator.pop(context);
             }
           },
+
           child: const Text('Add'),
         ),
       ],
