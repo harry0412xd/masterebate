@@ -181,6 +181,22 @@ class CardProvider with ChangeNotifier {
         .fold(0.0, (sum, e) => sum + e.amount);
   }
 
+  /// Returns the amount of eligible spending for the period expressed as "spend at
+  /// the card's extraRebatePct". This ensures expenses with 0% (or lower) rebate do not
+  /// reduce the remaining target. When the card has no extra rebate percent, return 0.0.
+  double getEligibleSpending(CardModel card) {
+    final periodStart = getPeriodStart(currentDate, card.monthlyCutoff);
+    if (card.extraRebatePct <= 0) return 0.0;
+
+    final sum = card.expenses
+        .where((e) => !e.date.isBefore(periodStart))
+        .fold(0.0, (double acc, e) => acc + e.amount * (e.rebatePct / card.extraRebatePct));
+
+    // It doesn't make sense for eligible spending to exceed the required spend for full rebate
+    final eligible = sum.clamp(0.0, card.getRequiredSpend());
+    return double.parse(eligible.toStringAsFixed(2));
+  }
+
   double getRebateUsed(CardModel card) {
     final periodStart = getPeriodStart(currentDate, card.monthlyCutoff);
 

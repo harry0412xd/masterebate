@@ -2,7 +2,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:image_picker/image_picker.dart';
 import '../providers/card_provider.dart';
 import '../models/card_model.dart';
 import 'package:provider/provider.dart';
@@ -54,9 +53,9 @@ class CardSummary extends StatelessWidget {
     );
     final periodEnd = nextPeriodStart.subtract(const Duration(days: 1));
 
-    final currentExpense = provider.getCurrentExpense(card);
+    final eligibleSpending = provider.getEligibleSpending(card);
     final requiredSpend = card.getRequiredSpend();
-    final remaining = requiredSpend - currentExpense;
+    final remaining = requiredSpend - eligibleSpending;
     final rebateUsed = provider.getRebateUsed(card);
 
     return Padding(
@@ -144,9 +143,9 @@ class CardSummary extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Spend this period:'),
+                    const Text('Eligible Spending:'),
                     Text(
-                      '\$${currentExpense.toStringAsFixed(2)}',
+                      '\$${eligibleSpending.toStringAsFixed(2)}',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ],
