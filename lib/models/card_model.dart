@@ -148,7 +148,8 @@ class CardModel {
       'Monthly Cutoff',
       'Rebate Cutoff',
       'Extra Rebate %',
-      'Quota'
+      'Quota',
+      'Image'
     ];
   }
 
@@ -158,19 +159,23 @@ class CardModel {
       monthlyCutoff,
       rebateCutoff,
       extraRebatePct,
-      quota
+      quota,
+      imagePath ?? ''
     ];
   }
 
   factory CardModel.fromCsvRow(String csvRow, String headerRow) {
     final headers = headerRow.split(',');
     final values = csvRow.split(',');
+    final imageb64 = values[headers.indexOf('Image')];
     return CardModel(
       name: values[headers.indexOf('name')],
       monthlyCutoff: int.parse(values[headers.indexOf('monthlyCutoff')]),
       rebateCutoff: int.parse(values[headers.indexOf('rebateCutoff')]),
       extraRebatePct: double.parse(values[headers.indexOf('extraRebatePct')]),
       quota: double.parse(values[headers.indexOf('quota')]),
+      
     );
   }
+
 }

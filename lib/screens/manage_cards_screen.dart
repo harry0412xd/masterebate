@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 import '../models/card_model.dart';
 
 class ManageCardsScreen extends StatelessWidget {
@@ -10,7 +10,7 @@ class ManageCardsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Manage Cards')),
-      body: Consumer<CardProvider>(
+      body: Consumer<CardViewModel>(
         builder: (context, provider, child) {
           final cards = provider.cards;
 
@@ -73,7 +73,7 @@ class ManageCardsScreen extends StatelessWidget {
 
   void _confirmDelete(
     BuildContext context,
-    CardProvider provider,
+    CardViewModel provider,
     int index,
     CardModel card,
   ) {

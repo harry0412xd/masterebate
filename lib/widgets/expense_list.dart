@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/card_model.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 
 class ExpenseList extends StatefulWidget {
   final CardModel card;
@@ -22,7 +22,7 @@ class _ExpenseListState extends State<ExpenseList> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<CardProvider>(context);
+    final provider = Provider.of<CardViewModel>(context);
     final expenses = widget.card.expenses;
 
     if (expenses.isEmpty) {

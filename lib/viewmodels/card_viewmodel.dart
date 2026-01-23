@@ -173,7 +173,9 @@ class CardViewModel with ChangeNotifier {
   void addFromPreset(Preset preset) {
     if (currentCard == null) return;
     addExpense(preset.amount, preset.description, rebatePct: preset.rebatePct);
+    // Ensure frequency increment is persisted after adding expense
     preset.frequency += 1;
+    _saveData();
     notifyListeners();
   }
 
@@ -256,7 +258,39 @@ class CardViewModel with ChangeNotifier {
 
     // Cards
     for (var card in _cards) {
-      csvRows.add(card.toCsvList());
+      // Ensure image column contains raw base64 (no data URL prefix) when possible
+      final row = card.toCsvList();
+      if (row.length > 5) {
+        final imgVal = (row[5] ?? '').toString();
+        if (imgVal.isNotEmpty) {
+          try {
+            if (imgVal.startsWith('data:')) {
+              final comma = imgVal.indexOf(',');
+              row[5] = comma != -1 ? imgVal.substring(comma + 1) : imgVal;
+            } else {
+              // Treat as file path: encode file contents to base64; do NOT export the file path
+              if (!kIsWeb) {
+                final f = io.File(imgVal);
+                if (await f.exists()) {
+                  final bytes = await f.readAsBytes();
+                  final b64 = base64Encode(bytes);
+                  row[5] = b64;
+                } else {
+                  // File not found (or it's a URL); clear the column to avoid exporting paths
+                  row[5] = '';
+                }
+              } else {
+                // On web preserve image as-is only if it's a data URL (handled above); otherwise clear
+                row[5] = '';
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) debugPrint('Image file read failed for export: $e');
+            row[5] = '';
+          }
+        }
+      }
+      csvRows.add(row);
     }
 
     // Empty line separator
@@ -370,7 +404,35 @@ class CardViewModel with ChangeNotifier {
 
     // Cards
     for (var card in _cards) {
-      csvRows.add(card.toCsvList());
+      final row = card.toCsvList();
+      if (row.length > 5) {
+        final imgVal = (row[5] ?? '').toString();
+        if (imgVal.isNotEmpty) {
+          try {
+            if (imgVal.startsWith('data:')) {
+              final comma = imgVal.indexOf(',');
+              row[5] = comma != -1 ? imgVal.substring(comma + 1) : imgVal;
+            } else {
+              if (!kIsWeb) {
+                final f = io.File(imgVal);
+                if (await f.exists()) {
+                  final bytes = await f.readAsBytes();
+                  final b64 = base64Encode(bytes);
+                  row[5] = b64;
+                } else {
+                  row[5] = '';
+                }
+              } else {
+                row[5] = '';
+              }
+            }
+          } catch (e) {
+            if (kDebugMode) debugPrint('Image file read failed for export string: $e');
+            row[5] = '';
+          }
+        }
+      }
+      csvRows.add(row);
     }
 
     // Empty line separator
@@ -511,7 +573,12 @@ class CardViewModel with ChangeNotifier {
         final headerKeywords = ['card','name','monthly', 'rebate', 'quota', 'cutoff', 'extra', 'amount', 'date', 'description', '%'];
         final headerMatchCount = headerKeywords.fold<int>(0, (acc, k) => acc + (cleaned.any((c) => c.toLowerCase().contains(k)) ? 1 : 0));
         final looksLikeHeader = headerMatchCount >= 2; // require at least two header-like tokens to avoid false positives like card names
-        if (looksLikeHeader) continue;
+        if (looksLikeHeader) {
+          // Extra check: header rows sometimes use 'Card Name' as a single cell
+          final firstLower = cleaned[0].toLowerCase();
+          if (firstLower.contains('card') && firstLower.contains('name')) continue;
+          continue;
+        }
 
         if (cleaned.length >= 2 && cleaned[0].isNotEmpty) {
           try {
@@ -520,12 +587,33 @@ class CardViewModel with ChangeNotifier {
             final extra = cleaned.length > 3 ? double.tryParse(cleaned[3]) ?? 0.0 : 0.0;
             final quota = cleaned.length > 4 ? double.tryParse(cleaned[4]) ?? 0.0 : 0.0;
 
+            // Handle image column: accept data URLs, URLs/file paths, or raw base64
+            final rawImg = (cleaned.length > 5 && cleaned[5].isNotEmpty) ? cleaned[5] : null;
+            String? imagePath;
+            if (rawImg == null) {
+              imagePath = null;
+            } else if (rawImg.startsWith('data:')) {
+              imagePath = rawImg;
+            } else {
+              // Heuristic: treat as base64 only if it looks like base64 (only base64 chars and sufficient length)
+              final cleanedB64 = rawImg.replaceAll(RegExp(r'\s+'), '');
+              final base64Regex = RegExp(r'^[A-Za-z0-9+/=]+$');
+              // Treat as base64 if it looks like base64 and has reasonable length (allow short test fixtures)
+              if (cleanedB64.length > 8 && base64Regex.hasMatch(cleanedB64)) {
+                imagePath = 'data:image/png;base64,$cleanedB64';
+              } else {
+                // Likely a URL or file path; preserve as-is
+                imagePath = rawImg;
+              }
+            }
+
             final card = CardModel(
               name: cleaned[0],
               monthlyCutoff: monthly,
               rebateCutoff: rebate,
               extraRebatePct: extra,
               quota: quota,
+              imagePath: imagePath,
             );
             importedCards.add(card);
             cardMap[card.name] = card;
@@ -593,7 +681,7 @@ class CardViewModel with ChangeNotifier {
   void _loadData() async {
     final loaded = await repository.loadCards();
     _cards = loaded;
-    _currentIndex = _cards.isNotEmpty ? 0 : 0;
+    _currentIndex = 0;
     notifyListeners();
   }
 }

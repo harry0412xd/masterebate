@@ -2,7 +2,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 import '../models/card_model.dart';
 import 'package:provider/provider.dart';
 import '../widgets/card_form.dart';
@@ -10,7 +10,7 @@ import 'image_display.dart';
 
 class CardSummary extends StatelessWidget {
   final CardModel card;
-  final CardProvider provider;
+  final CardViewModel provider;
 
   const CardSummary({
     super.key,
@@ -65,7 +65,7 @@ class CardSummary extends StatelessWidget {
           GestureDetector(
             onTap: () {
               // Open edit dialog for this card (prefill values and allow picking image)
-              final provider = Provider.of<CardProvider>(context, listen: false);
+              final provider = Provider.of<CardViewModel>(context, listen: false);
               final index = provider.cards.indexOf(card);
               if (index != -1) provider.setCurrentIndex(index);
 

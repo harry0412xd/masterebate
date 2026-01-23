@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/card_model.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 
 class PresetDialog extends StatefulWidget {
   final CardModel card;
@@ -34,7 +34,7 @@ class _PresetDialogState extends State<PresetDialog> {
                   IconButton(
                     icon: const Icon(Icons.delete),
                     onPressed: () {
-                      Provider.of<CardProvider>(context, listen: false).deletePreset(p);
+                      Provider.of<CardViewModel>(context, listen: false).deletePreset(p);
                       setState(() {});
                     },
                   ),
@@ -82,7 +82,7 @@ class _PresetDialogState extends State<PresetDialog> {
               final newAmount = double.tryParse(amountCtrl.text);
               final newPct = double.tryParse(rebateCtrl.text) ?? 0.0;
               if (newAmount != null) {
-                Provider.of<CardProvider>(context, listen: false)
+                Provider.of<CardViewModel>(context, listen: false)
                     .editPreset(p, descCtrl.text, newAmount, newPct);
                 Navigator.pop(context);
                 setState(() {});

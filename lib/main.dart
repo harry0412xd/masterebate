@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'providers/card_provider.dart';
+import 'package:provider/provider.dart';
+import 'viewmodels/card_viewmodel.dart';
+import 'services/card_repository.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
@@ -18,8 +20,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => CardProvider(prefs),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => CardViewModel(CardRepository(prefs))),
+      ],
       child: MaterialApp(
         title: 'MasterRebate',
         theme: ThemeData(

@@ -1,15 +1,13 @@
 // lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 import 'manage_cards_screen.dart';
-
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<CardProvider>(context, listen: false);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -18,12 +16,24 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.file_download),
             title: const Text('Import from CSV'),
-            onTap: () => provider.importFromCsv(),
+            onTap: () async {
+              final vm = Provider.of<CardViewModel>(context, listen: false);
+              final msg = await vm.importFromCsv();
+              if (msg != null && msg != 'cancelled') {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              }
+            },
           ),
           ListTile(
             leading: const Icon(Icons.file_upload),
             title: const Text('Export to CSV'),
-            onTap: () => provider.exportToCsv(context),
+            onTap: () async {
+              final vm = Provider.of<CardViewModel>(context, listen: false);
+              final res = await vm.exportToCsv();
+              if (res != null && res != 'cancelled') {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res)));
+              }
+            },
           ),
           const Divider(),
           SwitchListTile(

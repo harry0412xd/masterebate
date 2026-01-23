@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 import '../widgets/quota_progress_bar.dart';
 
 class OverviewScreen extends StatelessWidget {
@@ -8,7 +8,7 @@ class OverviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<CardProvider>(context);
+    final provider = Provider.of<CardViewModel>(context);
     final cards = provider.cards;
 
     if (cards.isEmpty) {

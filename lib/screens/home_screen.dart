@@ -2,7 +2,7 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 import '../models/card_model.dart';
 import '../widgets/card_form.dart';
 import '../widgets/preset_dialog.dart';
@@ -34,11 +34,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     // Debug-only: import seed CSV on first run when there are no cards
     if (kDebugMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        final provider = Provider.of<CardProvider>(context, listen: false);
-        if (provider.cards.isEmpty) {
+        final vm = Provider.of<CardViewModel>(context, listen: false);
+        if (vm.cards.isEmpty) {
           try {
             final csv = await DefaultAssetBundle.of(context).loadString('assets/test_seed.csv');
-            final msg = provider.importFromCsvString(csv);
+            final msg = vm.importFromCsvString(csv);
             if (msg != null) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
             }
@@ -75,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               icon: const Icon(Icons.calendar_today),
               tooltip: 'Set Debug Date',
               onPressed: () async {
-                final provider = Provider.of<CardProvider>(context, listen: false);
+                final provider = Provider.of<CardViewModel>(context, listen: false);
                 final picked = await showDatePicker(
                   context: context,
                   initialDate: provider.currentDate,
@@ -89,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           PopupMenuButton<String>(
             onSelected: (value) {
-              final provider = Provider.of<CardProvider>(context, listen: false);
+              final provider = Provider.of<CardViewModel>(context, listen: false);
               if (value == 'add') {
                 showDialog(
                   context: context,
@@ -126,7 +126,7 @@ class _CardTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CardProvider>(
+    return Consumer<CardViewModel>(
       builder: (context, provider, _) {
         final visibleCards = provider.visibleCards;
 
@@ -226,7 +226,7 @@ class _BottomQuickAddBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CardProvider>(
+    return Consumer<CardViewModel>(
       builder: (context, provider, _) {
         final card = provider.currentCard;
         if (card == null) return const SizedBox.shrink();

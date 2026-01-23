@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/card_provider.dart';
+import '../viewmodels/card_viewmodel.dart';
 import '../models/card_model.dart';
 
 void showQuickAddBottomSheet(BuildContext context) {
@@ -8,7 +8,7 @@ void showQuickAddBottomSheet(BuildContext context) {
   Preset? selectedPreset;
   final amountCtrl = TextEditingController();
 
-  final provider = Provider.of<CardProvider>(context, listen: false);
+  final provider = Provider.of<CardViewModel>(context, listen: false);
 
   showModalBottomSheet(
     context: context,
