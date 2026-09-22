@@ -1,14 +1,19 @@
 name: Build and Release Android APK
 
 on:
-  workflow_dispatch:  # Manual trigger for testing
+  workflow_dispatch:  # Manual trigger
   push:
     tags:
-      - 'v*'  # Triggers release on tags like v1.0.0
+      - 'v*'  # Full releases on version tags
+    branches:
+      - main
+      - grok-chan
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create/update releases
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,13 +24,15 @@ jobs:
           flutter-version: 3.38.3
           channel: "stable"
           cache: true
-          cache-key: deps-${{ hashFiles('**/pubspec.lock') }} # optional, change this to force refresh cache
-          cache-path: ${{ runner.tool_cache }}/flutter # optional, change this to specify the cache path
+          cache-key: deps-${{ hashFiles('**/pubspec.lock') }}
+          cache-path: ${{ runner.tool_cache }}/flutter
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+
       - name: Decode release keystore
         run: |
           echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > android/upload-keystore.jks
@@ -37,46 +44,48 @@ jobs:
           echo "keyAlias=${{ secrets.SIGNING_KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=upload-keystore.jks" >> android/key.properties
 
-      - name: Clean Flutter cache
-        run: flutter pub cache clean
-
       - name: Get Flutter dependencies
         run: flutter pub get
 
       - name: Build release APK (arm64-only)
         run: |
-          flutter build apk --release --target-platform=android-arm64 --no-shrink --verbose
-
-      # If you prefer a universal ("fat") APK instead of arm64-only, use this line instead:
-      # run: flutter build apk --release --no-shrink
+          flutter build apk --release --target-platform=android-arm64 --no-shrink
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk  # Path for single ABI
-          # For universal APK, use: build/app/outputs/apk/release/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
 
-      # Release steps - only run on tagged pushes
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        id: create_release
-        uses: actions/create-release@v1
+      # ── Always update the Beta pre-release with the latest APK ─────────────
+      - name: Update Beta Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: beta
+          name: Beta (latest build)
+          body: |
+            Continuous beta build from branch `${{ github.ref_name }}`
+            Commit: ${{ github.sha }}
+
+            This release is automatically updated on every successful build.
+            Download the latest APK below.
+          files: build/app/outputs/flutter-apk/app-release.apk
+          prerelease: true
+          draft: false
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Full versioned release (only when a v* tag is pushed) ──────────────
+      - name: Create Versioned Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          draft: false
+          name: Release ${{ github.ref_name }}
+          files: build/app/outputs/flutter-apk/app-release.apk
           prerelease: false
-
-      - name: Upload APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-release-asset@v1
+          draft: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/flutter-apk/app-release.apk
-          asset_name: app-release.apk
-          asset_content_type: application/vnd.android.package-archive
