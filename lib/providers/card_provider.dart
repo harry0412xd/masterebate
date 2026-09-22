@@ -132,14 +132,13 @@ class CardProvider with ChangeNotifier {
     ));
 
     if (saveAsPreset) {
-      var existing = currentCard!.presets.firstWhere(
+      final index = currentCard!.presets.indexWhere(
         (p) => p.description == desc && p.amount == amount,
-        orElse: () => Preset(description: desc, amount: amount),
       );
-      if (!currentCard!.presets.contains(existing)) {
-        currentCard!.presets.add(existing);
+      if (index >= 0) {
+        currentCard!.presets[index].frequency += 1;
       } else {
-        existing.frequency += 1;
+        currentCard!.presets.add(Preset(description: desc, amount: amount));
       }
     }
 
@@ -151,6 +150,7 @@ class CardProvider with ChangeNotifier {
     if (currentCard == null) return;
     addExpense(preset.amount, preset.description);
     preset.frequency += 1;
+    _saveData(); // persist the frequency increment
     notifyListeners();
   }
 
