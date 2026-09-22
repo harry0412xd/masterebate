@@ -1,5 +1,4 @@
 // lib/screens/home_screen.dart
-import 'dart:io';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +11,7 @@ import '../widgets/card_summary.dart';
 import '../widgets/expense_list.dart';
 import '../screens/overview_screen.dart';
 import '../screens/settings_screen.dart';
+import '../utils/image_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,7 +20,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -56,7 +57,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               icon: const Icon(Icons.calendar_today),
               tooltip: 'Set Debug Date',
               onPressed: () async {
-                final provider = Provider.of<CardProvider>(context, listen: false);
+                final provider =
+                    Provider.of<CardProvider>(context, listen: false);
                 final picked = await showDatePicker(
                   context: context,
                   initialDate: provider.currentDate,
@@ -70,7 +72,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           PopupMenuButton<String>(
             onSelected: (value) {
-              final provider = Provider.of<CardProvider>(context, listen: false);
+              final provider =
+                  Provider.of<CardProvider>(context, listen: false);
               if (value == 'add') {
                 showDialog(
                   context: context,
@@ -97,7 +100,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           OverviewScreen(),
         ],
       ),
-      bottomNavigationBar: _tabController.index == 0 ? const _BottomQuickAddBar() : null,
+      bottomNavigationBar:
+          _tabController.index == 0 ? const _BottomQuickAddBar() : null,
     );
   }
 }
@@ -130,7 +134,8 @@ class _CardTab extends StatelessWidget {
               height: 68,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 itemCount: visibleCards.length,
                 itemBuilder: (context, visibleIndex) {
                   final card = visibleCards[visibleIndex];
@@ -148,13 +153,18 @@ class _CardTab extends StatelessWidget {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.transparent,
                             width: 2.5,
                           ),
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary
+                                        .withOpacity(0.4),
                                     blurRadius: 8,
                                     offset: const Offset(0, 3),
                                   )
@@ -165,13 +175,15 @@ class _CardTab extends StatelessWidget {
                         child: card.imagePath != null
                             ? AspectRatio(
                                 aspectRatio: 1002 / 629,
-                                child: Image.file(
-                                  File(card.imagePath!),
+                                child: SafeCardImage(
+                                  imagePath: card.imagePath,
                                   fit: BoxFit.contain,
                                 ),
                               )
                             : Container(
-                                color: Theme.of(context).colorScheme.surfaceContainer,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainer,
                                 child: const Icon(Icons.credit_card, size: 32),
                               ),
                       ),
@@ -205,6 +217,7 @@ class _CardTab extends StatelessWidget {
     );
   }
 }
+
 class _BottomQuickAddBar extends StatelessWidget {
   const _BottomQuickAddBar();
 
@@ -233,7 +246,9 @@ class _BottomQuickAddBar extends StatelessWidget {
                       showDialog(
                         context: context,
                         builder: (_) => CustomEntryDialog(
-                          onAdd: (amt, desc, save) => provider.addExpense(amt, desc, saveAsPreset: save),
+                          onAdd: (amt, desc, save) => provider.addExpense(
+                              amt, desc,
+                              saveAsPreset: save),
                         ),
                       );
                     },
