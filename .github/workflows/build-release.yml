@@ -51,25 +51,46 @@ jobs:
         run: |
           flutter build apk --release --target-platform=android-arm64 --no-shrink
 
+      # Stable filename for Obtainium filtering
+      - name: Rename APK for Obtainium
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/MasterRebate-arm64-v8a.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/MasterRebate-arm64-v8a.apk
 
       # ── Always update the Beta pre-release with the latest APK ─────────────
+      # Obtainium tip: enable "Include prereleases" + "Use latest asset date as release date"
+      # so it detects updates even though the tag stays "beta".
       - name: Update Beta Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: beta
-          name: Beta (latest build)
+          name: Beta ${{ github.run_number }} (${{ github.sha }})
           body: |
-            Continuous beta build from branch `${{ github.ref_name }}`
-            Commit: ${{ github.sha }}
+            ## MasterRebate Beta
 
-            This release is automatically updated on every successful build.
+            Continuous beta build
+
+            | | |
+            |---|---|
+            | Branch | `${{ github.ref_name }}` |
+            | Commit | `${{ github.sha }}` |
+            | Run | #${{ github.run_number }} |
+
+            ### Obtainium setup
+            1. App source URL: `https://github.com/harry0412xd/masterebate`
+            2. **Include prereleases**: ON
+            3. **Use the latest asset date as the release date**: ON
+            4. (Recommended) **Release date as version**: ON
+            5. APK filter regex (optional): `MasterRebate-arm64-v8a\.apk`
+
             Download the latest APK below.
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: build/app/outputs/flutter-apk/MasterRebate-arm64-v8a.apk
           prerelease: true
           draft: false
           make_latest: false
@@ -83,7 +104,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: build/app/outputs/flutter-apk/MasterRebate-arm64-v8a.apk
           prerelease: false
           draft: false
           generate_release_notes: true
