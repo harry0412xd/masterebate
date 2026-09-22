@@ -63,16 +63,27 @@ class CardSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final today = provider.currentDate;
-    final periodStart = provider.getPeriodStart(today, card.monthlyCutoff);
-    final nextPeriodStart = provider.getPeriodStart(
+
+    // Statement period (monthlyCutoff)
+    final statementStart = provider.getPeriodStart(today, card.monthlyCutoff);
+    final nextStatementStart = provider.getPeriodStart(
       today.add(const Duration(days: 40)),
       card.monthlyCutoff,
     );
-    final periodEnd = nextPeriodStart.subtract(const Duration(days: 1));
+    final statementEnd = nextStatementStart.subtract(const Duration(days: 1));
+
+    // Rebate period (rebateCutoff) – this controls when the quota resets
+    final rebateStart = provider.getPeriodStart(today, card.rebateCutoff);
+    final nextRebateStart = provider.getPeriodStart(
+      today.add(const Duration(days: 40)),
+      card.rebateCutoff,
+    );
+    final rebateEnd = nextRebateStart.subtract(const Duration(days: 1));
 
     final currentExpense = provider.getCurrentExpense(card);
+    final rebatePeriodExpense = provider.getRebatePeriodExpense(card);
     final requiredSpend = card.getRequiredSpend();
-    final remaining = requiredSpend - currentExpense;
+    final remaining = requiredSpend - rebatePeriodExpense;
     final rebateUsed = provider.getRebateUsed(card);
 
     return Padding(
@@ -95,12 +106,12 @@ class CardSummary extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border.all(color: Theme.of(context).colorScheme.outline),
                 borderRadius: BorderRadius.circular(16),
-                color: Theme.of(context).colorScheme.surfaceContainerLowest, // subtle bg
+                color: Theme.of(context).colorScheme.surfaceContainerLowest,
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: card.imagePath != null
-                    ? Center(                                 // ← center + contain
+                    ? Center(
                         child: AspectRatio(
                           aspectRatio: 1002 / 629,
                           child: Image.file(
@@ -141,16 +152,37 @@ class CardSummary extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${DateFormat('d MMM yyyy').format(periodStart)} – ${DateFormat('d MMM yyyy').format(periodEnd)}',
+                  '${DateFormat('d MMM yyyy').format(statementStart)} – ${DateFormat('d MMM yyyy').format(statementEnd)}',
                   style: const TextStyle(fontSize: 15),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 4),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Spend this period:'),
+                    const Text('Spend this statement:'),
                     Text(
                       '\$${currentExpense.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                Text(
+                  'Rebate Period',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${DateFormat('d MMM yyyy').format(rebateStart)} – ${DateFormat('d MMM yyyy').format(rebateEnd)}',
+                  style: const TextStyle(fontSize: 15),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Spend this rebate period:'),
+                    Text(
+                      '\$${rebatePeriodExpense.toStringAsFixed(2)}',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ],
