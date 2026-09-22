@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 
 /// Copies a picked image into the app's permanent documents directory
 /// so it survives app restarts and cache cleanups.
@@ -16,17 +15,19 @@ Future<String?> saveCardImagePermanently(String sourcePath) async {
     if (!await source.exists()) return null;
 
     final docsDir = await getApplicationDocumentsDirectory();
-    final imagesDir = Directory(p.join(docsDir.path, 'card_images'));
+    final imagesDir = Directory('${docsDir.path}/card_images');
     if (!await imagesDir.exists()) {
       await imagesDir.create(recursive: true);
     }
 
-    final ext = p.extension(sourcePath).isNotEmpty
-        ? p.extension(sourcePath)
+    // Extract extension (e.g. ".jpg")
+    final lastDot = sourcePath.lastIndexOf('.');
+    final ext = (lastDot != -1 && lastDot < sourcePath.length - 1)
+        ? sourcePath.substring(lastDot)
         : '.jpg';
-    final filename =
-        'card_${DateTime.now().millisecondsSinceEpoch}$ext';
-    final destPath = p.join(imagesDir.path, filename);
+
+    final filename = 'card_${DateTime.now().millisecondsSinceEpoch}$ext';
+    final destPath = '${imagesDir.path}/$filename';
 
     await source.copy(destPath);
     return destPath;
