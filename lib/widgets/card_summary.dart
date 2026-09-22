@@ -1,12 +1,11 @@
 // lib/widgets/card_summary.dart
-import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../providers/card_provider.dart';
 import '../models/card_model.dart';
+import '../utils/image_utils.dart';
 
 class CardSummary extends StatelessWidget {
   final CardModel card;
@@ -21,19 +20,23 @@ class CardSummary extends StatelessWidget {
   Future<void> _pickImage(BuildContext context) async {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      final updated = CardModel(
-        name: card.name,
-        monthlyCutoff: card.monthlyCutoff,
-        rebateCutoff: card.rebateCutoff,
-        extraRebatePct: card.extraRebatePct,
-        quota: card.quota,
-        imagePath: image.path,
-        expenses: card.expenses,    // Preserve existing expenses
-        presets: card.presets,      // Preserve existing presets
-      );
-      provider.editCard(updated);
-    }
+    if (image == null) return;
+
+    // Copy to permanent storage
+    final permanentPath = await saveCardImagePermanently(image.path);
+
+    final updated = CardModel(
+      name: card.name,
+      monthlyCutoff: card.monthlyCutoff,
+      rebateCutoff: card.rebateCutoff,
+      extraRebatePct: card.extraRebatePct,
+      quota: card.quota,
+      imagePath: permanentPath ?? image.path,
+      isHidden: card.isHidden,
+      expenses: card.expenses,
+      presets: card.presets,
+    );
+    provider.editCard(updated);
   }
 
   void _deleteCard(BuildContext context) {
@@ -41,7 +44,8 @@ class CardSummary extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Card'),
-        content: const Text('Are you sure you want to delete this card and all its data?'),
+        content: const Text(
+            'Are you sure you want to delete this card and all its data?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -72,7 +76,7 @@ class CardSummary extends StatelessWidget {
     );
     final statementEnd = nextStatementStart.subtract(const Duration(days: 1));
 
-    // Rebate period (rebateCutoff) – this controls when the quota resets
+    // Rebate period (rebateCutoff)
     final rebateStart = provider.getPeriodStart(today, card.rebateCutoff);
     final nextRebateStart = provider.getPeriodStart(
       today.add(const Duration(days: 40)),
@@ -114,19 +118,22 @@ class CardSummary extends StatelessWidget {
                     ? Center(
                         child: AspectRatio(
                           aspectRatio: 1002 / 629,
-                          child: Image.file(
-                            File(card.imagePath!),
+                          child: SafeCardImage(
+                            imagePath: card.imagePath,
                             fit: BoxFit.contain,
                           ),
                         ),
                       )
                     : Center(
-                      child: Icon(
-                        Icons.credit_card,
-                        size: 80,
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                        child: Icon(
+                          Icons.credit_card,
+                          size: 80,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.5),
+                        ),
                       ),
-                    ),
               ),
             ),
           ),
