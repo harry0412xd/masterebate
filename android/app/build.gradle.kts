@@ -1,18 +1,17 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 import java.util.Properties
 import java.io.FileInputStream
 
-// Load key.properties if present (used by CI and local release builds)
-// File lives at android/key.properties
+// key.properties lives at android/key.properties (CI writes it there)
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
@@ -31,7 +30,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Change to your own unique Application ID before publishing.
         applicationId = "com.example.masterebate"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
@@ -40,25 +38,25 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            if (keystorePropertiesFile.exists()) {
+        if (hasReleaseKeystore) {
+            create("release") {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
-                // storeFile path in key.properties is relative to android/
                 storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
+                enableV1Signing = true
+                enableV2Signing = true
             }
         }
     }
 
     buildTypes {
         release {
-            // Use release keystore when key.properties exists (CI / local release),
-            // otherwise fall back to debug so `flutter run --release` still works.
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                // Local `flutter run --release` without key.properties
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
     }
