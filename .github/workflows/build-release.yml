@@ -40,7 +40,6 @@ jobs:
             exit 1
           fi
           echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > android/upload-keystore.jks
-          # Must be a real keystore (non-trivial size)
           SIZE=$(stat -c%s android/upload-keystore.jks)
           echo "Keystore size: $SIZE bytes"
           if [ "$SIZE" -lt 100 ]; then
@@ -56,36 +55,32 @@ jobs:
             echo "ERROR: one or more signing secrets are empty"
             exit 1
           fi
-          cat > android/key.properties << EOF
-          storePassword=${{ secrets.SIGNING_STORE_PASSWORD }}
-          keyPassword=${{ secrets.SIGNING_KEY_PASSWORD }}
-          keyAlias=${{ secrets.SIGNING_KEY_ALIAS }}
-          storeFile=upload-keystore.jks
-          EOF
-          echo "key.properties created:"
-          # Print keys only (not secret values)
+          printf '%s
+' \
+            "storePassword=${{ secrets.SIGNING_STORE_PASSWORD }}" \
+            "keyPassword=${{ secrets.SIGNING_KEY_PASSWORD }}" \
+            "keyAlias=${{ secrets.SIGNING_KEY_ALIAS }}" \
+            "storeFile=upload-keystore.jks" \
+            > android/key.properties
+          echo "key.properties keys:"
           cut -d= -f1 android/key.properties
 
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      # Universal APK is more reliable for sideload / Samsung installers
       - name: Build release APK (universal)
-        run: |
-          flutter build apk --release --no-shrink
+        run: flutter build apk --release --no-shrink
 
       - name: Verify APK is signed
         run: |
           APK=build/app/outputs/flutter-apk/app-release.apk
           ls -la "$APK"
-          # jarsigner must report jar signed
           if ! jarsigner -verify -verbose "$APK" 2>&1 | tee /tmp/jsig.txt | grep -q "jar verified"; then
             echo "ERROR: APK is not properly signed (jarsigner failed)"
             cat /tmp/jsig.txt
             exit 1
           fi
           echo "APK signature OK"
-          # Also require META-INF cert files for v1
           if ! unzip -l "$APK" | grep -qE 'META-INF/.*\.(RSA|DSA|EC)'; then
             echo "ERROR: missing META-INF certificate (v1 signature)"
             unzip -l "$APK" | grep META-INF || true
