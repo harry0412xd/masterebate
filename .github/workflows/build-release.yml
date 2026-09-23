@@ -1,10 +1,10 @@
 name: Build and Release Android APK
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
   push:
     tags:
-      - 'v*'  # Full releases on version tags
+      - 'v*'
     branches:
       - main
       - grok-chan
@@ -13,7 +13,7 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # needed to create/update releases
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,37 +35,75 @@ jobs:
 
       - name: Decode release keystore
         run: |
+          if [ -z "${{ secrets.SIGNING_KEY_BASE64 }}" ]; then
+            echo "ERROR: SIGNING_KEY_BASE64 secret is empty"
+            exit 1
+          fi
           echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 -d > android/upload-keystore.jks
+          # Must be a real keystore (non-trivial size)
+          SIZE=$(stat -c%s android/upload-keystore.jks)
+          echo "Keystore size: $SIZE bytes"
+          if [ "$SIZE" -lt 100 ]; then
+            echo "ERROR: keystore file looks empty/invalid"
+            exit 1
+          fi
 
       - name: Create key.properties
         run: |
-          echo "storePassword=${{ secrets.SIGNING_STORE_PASSWORD }}" > android/key.properties
-          echo "keyPassword=${{ secrets.SIGNING_KEY_PASSWORD }}" >> android/key.properties
-          echo "keyAlias=${{ secrets.SIGNING_KEY_ALIAS }}" >> android/key.properties
-          echo "storeFile=upload-keystore.jks" >> android/key.properties
+          if [ -z "${{ secrets.SIGNING_STORE_PASSWORD }}" ] || \
+             [ -z "${{ secrets.SIGNING_KEY_PASSWORD }}" ] || \
+             [ -z "${{ secrets.SIGNING_KEY_ALIAS }}" ]; then
+            echo "ERROR: one or more signing secrets are empty"
+            exit 1
+          fi
+          cat > android/key.properties << EOF
+          storePassword=${{ secrets.SIGNING_STORE_PASSWORD }}
+          keyPassword=${{ secrets.SIGNING_KEY_PASSWORD }}
+          keyAlias=${{ secrets.SIGNING_KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+          echo "key.properties created:"
+          # Print keys only (not secret values)
+          cut -d= -f1 android/key.properties
 
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Build release APK (arm64-only)
+      # Universal APK is more reliable for sideload / Samsung installers
+      - name: Build release APK (universal)
         run: |
-          flutter build apk --release --target-platform=android-arm64 --no-shrink
+          flutter build apk --release --no-shrink
 
-      # Stable filename for Obtainium filtering
+      - name: Verify APK is signed
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          ls -la "$APK"
+          # jarsigner must report jar signed
+          if ! jarsigner -verify -verbose "$APK" 2>&1 | tee /tmp/jsig.txt | grep -q "jar verified"; then
+            echo "ERROR: APK is not properly signed (jarsigner failed)"
+            cat /tmp/jsig.txt
+            exit 1
+          fi
+          echo "APK signature OK"
+          # Also require META-INF cert files for v1
+          if ! unzip -l "$APK" | grep -qE 'META-INF/.*\.(RSA|DSA|EC)'; then
+            echo "ERROR: missing META-INF certificate (v1 signature)"
+            unzip -l "$APK" | grep META-INF || true
+            exit 1
+          fi
+          echo "v1 signing artifacts present"
+
       - name: Rename APK for Obtainium
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/MasterRebate-arm64-v8a.apk
+             build/app/outputs/flutter-apk/MasterRebate.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: build/app/outputs/flutter-apk/MasterRebate-arm64-v8a.apk
+          path: build/app/outputs/flutter-apk/MasterRebate.apk
 
-      # ── Always update the Beta pre-release with the latest APK ─────────────
-      # Obtainium tip: enable "Include prereleases" + "Use latest asset date as release date"
-      # so it detects updates even though the tag stays "beta".
       - name: Update Beta Release
         uses: softprops/action-gh-release@v2
         with:
@@ -74,7 +112,7 @@ jobs:
           body: |
             ## MasterRebate Beta
 
-            Continuous beta build
+            Continuous beta build (signed release APK)
 
             | | |
             |---|---|
@@ -87,24 +125,23 @@ jobs:
             2. **Include prereleases**: ON
             3. **Use the latest asset date as the release date**: ON
             4. (Recommended) **Release date as version**: ON
-            5. APK filter regex (optional): `MasterRebate-arm64-v8a\.apk`
+            5. APK filter regex (optional): `MasterRebate\.apk`
 
-            Download the latest APK below.
-          files: build/app/outputs/flutter-apk/MasterRebate-arm64-v8a.apk
+            Download **MasterRebate.apk** below.
+          files: build/app/outputs/flutter-apk/MasterRebate.apk
           prerelease: true
           draft: false
           make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── Full versioned release (only when a v* tag is pushed) ──────────────
       - name: Create Versioned Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          files: build/app/outputs/flutter-apk/MasterRebate-arm64-v8a.apk
+          files: build/app/outputs/flutter-apk/MasterRebate.apk
           prerelease: false
           draft: false
           generate_release_notes: true
