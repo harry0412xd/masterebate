@@ -14,12 +14,13 @@ class Expense {
 
   static List csvHeader() {
     return [
-      'Card'
+      'Card',
       'Date',
       'Amount',
       'Description',
     ];
   }
+
   List toCsvList(String cardName) {
     return [
       cardName,
@@ -36,11 +37,10 @@ class Expense {
       };
 
   factory Expense.fromJson(Map<String, dynamic> json) => Expense(
-        date: DateTime.parse(json['date']),
-        amount: json['amount'],
-        description: json['description'],
+        date: DateTime.parse(json['date'] as String),
+        amount: (json['amount'] as num).toDouble(),
+        description: json['description'] as String? ?? '',
       );
-
 }
 
 class Preset {
@@ -61,9 +61,9 @@ class Preset {
       };
 
   factory Preset.fromJson(Map<String, dynamic> json) => Preset(
-        description: json['description'],
-        amount: json['amount'],
-        frequency: json['frequency'],
+        description: json['description'] as String? ?? '',
+        amount: (json['amount'] as num).toDouble(),
+        frequency: (json['frequency'] as num?)?.toInt() ?? 1,
       );
 }
 
@@ -77,7 +77,7 @@ class CardModel {
   bool isHidden;
   List<Expense> expenses;
   List<Preset> presets;
-  
+
   CardModel({
     required this.name,
     required this.monthlyCutoff,
@@ -90,8 +90,6 @@ class CardModel {
     List<Preset>? presets,
   })  : expenses = expenses ?? [],
         presets = presets ?? [];
-
-
 
   double getRequiredSpend() {
     if (extraRebatePct <= 0) return 0.0;
@@ -112,13 +110,13 @@ class CardModel {
 
   factory CardModel.fromJson(Map<String, dynamic> json) {
     return CardModel(
-      name: json['name'],
-      monthlyCutoff: json['monthlyCutoff'],
-      rebateCutoff: json['rebateCutoff'],
-      extraRebatePct: json['extraRebatePct'],
-      quota: json['quota'],
-      imagePath: json['imagePath'],
-      isHidden: json['isHidden'] ?? false,
+      name: json['name'] as String? ?? '',
+      monthlyCutoff: (json['monthlyCutoff'] as num?)?.toInt() ?? 1,
+      rebateCutoff: (json['rebateCutoff'] as num?)?.toInt() ?? 31,
+      extraRebatePct: (json['extraRebatePct'] as num?)?.toDouble() ?? 0.0,
+      quota: (json['quota'] as num?)?.toDouble() ?? 0.0,
+      imagePath: json['imagePath'] as String?,
+      isHidden: json['isHidden'] as bool? ?? false,
       expenses: (json['expenses'] as List<dynamic>?)
               ?.map((e) => Expense.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -130,14 +128,13 @@ class CardModel {
     );
   }
 
-
   static List csvHeader() {
     return [
       'Card Name',
       'Monthly Cutoff',
       'Rebate Cutoff',
       'Extra Rebate %',
-      'Quota'
+      'Quota',
     ];
   }
 
@@ -147,7 +144,7 @@ class CardModel {
       monthlyCutoff,
       rebateCutoff,
       extraRebatePct,
-      quota
+      quota,
     ];
   }
 

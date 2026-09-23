@@ -132,14 +132,13 @@ class CardProvider with ChangeNotifier {
     ));
 
     if (saveAsPreset) {
-      var existing = currentCard!.presets.firstWhere(
+      final index = currentCard!.presets.indexWhere(
         (p) => p.description == desc && p.amount == amount,
-        orElse: () => Preset(description: desc, amount: amount),
       );
-      if (!currentCard!.presets.contains(existing)) {
-        currentCard!.presets.add(existing);
+      if (index >= 0) {
+        currentCard!.presets[index].frequency += 1;
       } else {
-        existing.frequency += 1;
+        currentCard!.presets.add(Preset(description: desc, amount: amount));
       }
     }
 
@@ -151,6 +150,7 @@ class CardProvider with ChangeNotifier {
     if (currentCard == null) return;
     addExpense(preset.amount, preset.description);
     preset.frequency += 1;
+    _saveData(); // persist the frequency increment
     notifyListeners();
   }
 
@@ -168,6 +168,7 @@ class CardProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Spend during the current **statement** period (uses monthlyCutoff).
   double getCurrentExpense(CardModel card) {
     final periodStart = getPeriodStart(currentDate, card.monthlyCutoff);
     return card.expenses
@@ -175,15 +176,27 @@ class CardProvider with ChangeNotifier {
         .fold(0.0, (sum, e) => sum + e.amount);
   }
 
+  /// Spend during the current **rebate** period (uses rebateCutoff).
+  /// This is what should drive the quota calculation so the quota
+  /// does not reset before the rebate cutoff day.
+  double getRebatePeriodExpense(CardModel card) {
+    final periodStart = getPeriodStart(currentDate, card.rebateCutoff);
+    return card.expenses
+        .where((e) => !e.date.isBefore(periodStart))
+        .fold(0.0, (sum, e) => sum + e.amount);
+  }
+
+  /// Rebate earned in the current rebate period (capped at quota).
   double getRebateUsed(CardModel card) {
-    final expense = getCurrentExpense(card);
-    final required = card.getRequiredSpend();
-    if (required <= 0) return 0.0;
+    final expense = getRebatePeriodExpense(card);
+    if (card.extraRebatePct <= 0) return 0.0;
 
     final baseRebate = expense * (card.extraRebatePct / 100);
     return baseRebate.clamp(0.0, card.quota);
   }
 
+  /// Returns the start of the period for a given cutoff day.
+  /// If today.day <= cutoff, the period started last month on that day.
   DateTime getPeriodStart(DateTime today, int cutoff) {
     int year = today.year;
     int month = today.month;

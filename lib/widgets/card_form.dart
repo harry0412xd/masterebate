@@ -1,8 +1,9 @@
 // lib/widgets/card_form.dart
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/card_model.dart';
+import '../utils/image_utils.dart';
 
 class CardForm extends StatefulWidget {
   final CardModel? card;
@@ -22,17 +23,21 @@ class _CardFormState extends State<CardForm> {
   late TextEditingController _pctCtrl;
   late TextEditingController _quotaCtrl;
   String? _imagePath;
+  bool _savingImage = false;
 
   @override
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.card?.name ?? '');
-    _monthlyCtrl = TextEditingController(text: widget.card?.monthlyCutoff.toString() ?? '');
+    _monthlyCtrl = TextEditingController(
+        text: widget.card?.monthlyCutoff.toString() ?? '');
     _rebateCtrl = TextEditingController(
       text: widget.card?.rebateCutoff.toString() ?? '31',
     );
-    _pctCtrl = TextEditingController(text: widget.card?.extraRebatePct.toString() ?? '');
-    _quotaCtrl = TextEditingController(text: widget.card?.quota.toString() ?? '');
+    _pctCtrl = TextEditingController(
+        text: widget.card?.extraRebatePct.toString() ?? '');
+    _quotaCtrl =
+        TextEditingController(text: widget.card?.quota.toString() ?? '');
     _imagePath = widget.card?.imagePath;
   }
 
@@ -49,9 +54,17 @@ class _CardFormState extends State<CardForm> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() => _imagePath = image.path);
-    }
+    if (image == null) return;
+
+    setState(() => _savingImage = true);
+
+    // Copy to permanent storage so the image survives app restarts
+    final permanentPath = await saveCardImagePermanently(image.path);
+
+    setState(() {
+      _imagePath = permanentPath ?? image.path; // fallback to temp if copy failed
+      _savingImage = false;
+    });
   }
 
   @override
@@ -72,13 +85,15 @@ class _CardFormState extends State<CardForm> {
               TextFormField(
                 controller: _monthlyCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Monthly Cutoff Day (1-31)'),
+                decoration:
+                    const InputDecoration(labelText: 'Monthly Cutoff Day (1-31)'),
                 validator: _validateDay,
               ),
               TextFormField(
                 controller: _rebateCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Rebate Cutoff Day (1-31)'),
+                decoration:
+                    const InputDecoration(labelText: 'Rebate Cutoff Day (1-31)'),
                 validator: _validateDay,
               ),
               TextFormField(
@@ -95,16 +110,26 @@ class _CardFormState extends State<CardForm> {
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: _pickImage,
-                icon: const Icon(Icons.image),
-                label: const Text('Pick Card Image'),
+                onPressed: _savingImage ? null : _pickImage,
+                icon: _savingImage
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.image),
+                label: Text(_savingImage ? 'Saving…' : 'Pick Card Image'),
               ),
               if (_imagePath != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.file(File(_imagePath!), height: 120, fit: BoxFit.cover),
+                    child: SafeCardImage(
+                      imagePath: _imagePath,
+                      height: 120,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
             ],
@@ -126,6 +151,10 @@ class _CardFormState extends State<CardForm> {
                 extraRebatePct: double.parse(_pctCtrl.text),
                 quota: double.parse(_quotaCtrl.text),
                 imagePath: _imagePath,
+                // Preserve existing data when editing
+                isHidden: widget.card?.isHidden ?? false,
+                expenses: widget.card?.expenses,
+                presets: widget.card?.presets,
               );
               widget.onSave(newCard);
               Navigator.pop(context);

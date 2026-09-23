@@ -1,12 +1,11 @@
 // lib/widgets/card_summary.dart
-import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../providers/card_provider.dart';
 import '../models/card_model.dart';
+import '../utils/image_utils.dart';
 
 class CardSummary extends StatelessWidget {
   final CardModel card;
@@ -21,19 +20,23 @@ class CardSummary extends StatelessWidget {
   Future<void> _pickImage(BuildContext context) async {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      final updated = CardModel(
-        name: card.name,
-        monthlyCutoff: card.monthlyCutoff,
-        rebateCutoff: card.rebateCutoff,
-        extraRebatePct: card.extraRebatePct,
-        quota: card.quota,
-        imagePath: image.path,
-        expenses: card.expenses,    // Preserve existing expenses
-        presets: card.presets,      // Preserve existing presets
-      );
-      provider.editCard(updated);
-    }
+    if (image == null) return;
+
+    // Copy to permanent storage
+    final permanentPath = await saveCardImagePermanently(image.path);
+
+    final updated = CardModel(
+      name: card.name,
+      monthlyCutoff: card.monthlyCutoff,
+      rebateCutoff: card.rebateCutoff,
+      extraRebatePct: card.extraRebatePct,
+      quota: card.quota,
+      imagePath: permanentPath ?? image.path,
+      isHidden: card.isHidden,
+      expenses: card.expenses,
+      presets: card.presets,
+    );
+    provider.editCard(updated);
   }
 
   void _deleteCard(BuildContext context) {
@@ -41,7 +44,8 @@ class CardSummary extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Card'),
-        content: const Text('Are you sure you want to delete this card and all its data?'),
+        content: const Text(
+            'Are you sure you want to delete this card and all its data?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -63,16 +67,27 @@ class CardSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final today = provider.currentDate;
-    final periodStart = provider.getPeriodStart(today, card.monthlyCutoff);
-    final nextPeriodStart = provider.getPeriodStart(
+
+    // Statement period (monthlyCutoff)
+    final statementStart = provider.getPeriodStart(today, card.monthlyCutoff);
+    final nextStatementStart = provider.getPeriodStart(
       today.add(const Duration(days: 40)),
       card.monthlyCutoff,
     );
-    final periodEnd = nextPeriodStart.subtract(const Duration(days: 1));
+    final statementEnd = nextStatementStart.subtract(const Duration(days: 1));
+
+    // Rebate period (rebateCutoff)
+    final rebateStart = provider.getPeriodStart(today, card.rebateCutoff);
+    final nextRebateStart = provider.getPeriodStart(
+      today.add(const Duration(days: 40)),
+      card.rebateCutoff,
+    );
+    final rebateEnd = nextRebateStart.subtract(const Duration(days: 1));
 
     final currentExpense = provider.getCurrentExpense(card);
+    final rebatePeriodExpense = provider.getRebatePeriodExpense(card);
     final requiredSpend = card.getRequiredSpend();
-    final remaining = requiredSpend - currentExpense;
+    final remaining = requiredSpend - rebatePeriodExpense;
     final rebateUsed = provider.getRebateUsed(card);
 
     return Padding(
@@ -95,27 +110,30 @@ class CardSummary extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border.all(color: Theme.of(context).colorScheme.outline),
                 borderRadius: BorderRadius.circular(16),
-                color: Theme.of(context).colorScheme.surfaceContainerLowest, // subtle bg
+                color: Theme.of(context).colorScheme.surfaceContainerLowest,
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: card.imagePath != null
-                    ? Center(                                 // ← center + contain
+                    ? Center(
                         child: AspectRatio(
                           aspectRatio: 1002 / 629,
-                          child: Image.file(
-                            File(card.imagePath!),
+                          child: SafeCardImage(
+                            imagePath: card.imagePath,
                             fit: BoxFit.contain,
                           ),
                         ),
                       )
                     : Center(
-                      child: Icon(
-                        Icons.credit_card,
-                        size: 80,
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                        child: Icon(
+                          Icons.credit_card,
+                          size: 80,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.5),
+                        ),
                       ),
-                    ),
               ),
             ),
           ),
@@ -141,16 +159,37 @@ class CardSummary extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${DateFormat('d MMM yyyy').format(periodStart)} – ${DateFormat('d MMM yyyy').format(periodEnd)}',
+                  '${DateFormat('d MMM yyyy').format(statementStart)} – ${DateFormat('d MMM yyyy').format(statementEnd)}',
                   style: const TextStyle(fontSize: 15),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 4),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Spend this period:'),
+                    const Text('Spend this statement:'),
                     Text(
                       '\$${currentExpense.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                Text(
+                  'Rebate Period',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${DateFormat('d MMM yyyy').format(rebateStart)} – ${DateFormat('d MMM yyyy').format(rebateEnd)}',
+                  style: const TextStyle(fontSize: 15),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Spend this rebate period:'),
+                    Text(
+                      '\$${rebatePeriodExpense.toStringAsFixed(2)}',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ],
